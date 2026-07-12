@@ -72,7 +72,7 @@ input,select,textarea{font-family:var(--font-body);}
   left:max(22px, env(safe-area-inset-left) + 12px);
   bottom:max(22px, env(safe-area-inset-bottom) + 12px);
   z-index:9999;
-  display:flex; flex-direction:column; align-items:flex-start; gap:10px;
+  width:58px; height:58px;
   font-family:var(--font-sans, inherit);
   touch-action:none;
 }
@@ -106,6 +106,7 @@ input,select,textarea{font-family:var(--font-body);}
   100%{ transform:scale(2.1); opacity:0; }
 }
 #voice-bubble{
+  position:absolute; left:0; bottom:calc(100% + 10px);
   max-width:260px; background:var(--navy-900); color:#fff; border:1px solid rgba(255,255,255,0.12);
   border-radius:12px; padding:10px 14px; font-size:12.5px; box-shadow:0 6px 20px rgba(0,0,0,0.35);
   opacity:0; transform:translateY(6px); pointer-events:none; transition:opacity .2s ease, transform .2s ease;
@@ -114,7 +115,7 @@ input,select,textarea{font-family:var(--font-body);}
 #voice-bubble-status{ font-weight:700; color:var(--brass,#B8922F); margin-bottom:3px; }
 #voice-bubble-transcript{ color:#dfe4ea; line-height:1.4; }
 @media (max-width:560px){
-  #voice-widget{ left:14px; bottom:14px; }
+  #voice-widget{ left:14px; bottom:14px; width:50px; height:50px; }
   #voice-btn-wrap{ width:50px; height:50px; }
   #voice-btn{ width:50px; height:50px; }
   #voice-bubble{ max-width:200px; }
@@ -944,6 +945,17 @@ let TALLY = {
 // Baris input muatan yang sedang diketik pada formulir (belum disimpan), terpisah untuk Muat & Bongkar.
 let TALLY_FORM_ROWS = { muat: [ blankTallyRow() ], bongkar: [ blankTallyRow() ] };
 let TALLY_SELECTED_ID = { muat: null, bongkar: null };
+// Kepala formulir (pelabuhan/kapal/voyage/ETD-ETA/hari-tanggal) yang sedang diisi, terpisah untuk
+// Muat & Bongkar -- disimpan di state (bukan hanya dibaca dari DOM saat submit) supaya nilainya
+// tidak hilang saat formulir digambar ulang (mis. sesudah menambah/menghapus baris muatan, atau
+// sesudah diisi lewat suara).
+function tallyDefaultHeader(){
+  return { pelabuhan:'Kendari', kapal:'KM. TILONGKABILA', voyage:'', etdeta:'', hariTanggal:'' };
+}
+let TALLY_FORM_HEADER = { muat: tallyDefaultHeader(), bongkar: tallyDefaultHeader() };
+// Modal edit Berita Acara Tally yang sedang dibuka (kepala formulir + baris muatan) -- null kalau
+// tidak ada modal edit yang terbuka.
+let TALLY_EDIT_STATE = null;
 
 /* ======================= STATE MODUL KAS KEAGENAN ======================= */
 // Kas Keagenan = pembukuan dana kerja keagenan per kapal: dana masuk (Moker/Uang
@@ -2144,7 +2156,12 @@ const VOICE_FIELD_QUESTIONS = {
   pelabuhan: 'Pelabuhannya di mana?',
   voyage: 'Voyage berapa?',
   etdeta: 'ETD atau ETA-nya jam berapa?',
-  haritanggal: 'Hari dan tanggal verifikasinya kapan?'
+  haritanggal: 'Hari dan tanggal verifikasinya kapan?',
+  pengirim: 'Pengirimnya siapa atau apa?',
+  penerima: 'Penerimanya siapa atau apa?',
+  isimuatan: 'Isi muatannya apa?',
+  qtykoli: 'Jumlah kolinya berapa?',
+  ukuran: 'Ukurannya berapa, dalam ton atau meter kubik?'
 };
 
 /* ---- Handler khusus modul: Input Nota Dinas ---- */
@@ -2440,18 +2457,29 @@ function voiceMissingFieldsKasKeagenan(fields){
   return missing;
 }
 
-/* ---- Handler khusus modul: Input Berita Acara Tally (kepala formulir saja — tabel muatan
-   tetap diisi manual karena terlalu rinci untuk didikte dengan andal) ---- */
+/* ---- Handler khusus modul: Input Berita Acara Tally. Mengisi kepala formulir DAN, kalau
+   disebutkan, juga mengisi satu baris muatan sekaligus (pengirim/penerima/tujuan/isi/qty
+   koli/ukuran) -- baris Verifikasi otomatis disamakan dengan baris Laporan dulu, lalu petugas
+   tinggal koreksi manual di tabel kalau memang ada beda hasil verifikasi. Ucapan berikutnya
+   otomatis mengisi baris kosong berikutnya, jadi tally beberapa baris muatan bisa didikte
+   berturut-turut. ---- */
 function voiceMakeTallyHandler(jenis){
   function parse(transcript){
     const text = transcript.toLowerCase();
-    const result = { pelabuhan:null, kapal:null, voyage:null, etdeta:null, haritanggal:null };
+    const result = { pelabuhan:null, kapal:null, voyage:null, etdeta:null, haritanggal:null,
+      pengirim:null, penerima:null, tujuan:null, isimuatan:null, qtykoli:null, ukuran:null };
     const markers = [
       {field:'pelabuhan', re:/\bpelabuhan\b/i},
       {field:'kapal', re:/\b(kapal|nama kapal)\b/i},
       {field:'voyage', re:/\bvoyage\b/i},
       {field:'etdeta', re:/\b(etd|eta)\b/i},
       {field:'haritanggal', re:/\b(hari\s*,?\s*tanggal|tanggal verifikasi|tanggal|tgl|hari ini|kemarin lusa|kemarin|besok|lusa)\b/i},
+      {field:'pengirim', re:/\bpengirim\b/i},
+      {field:'penerima', re:/\bpenerima\b/i},
+      {field:'tujuan', re:/\btujuan\b/i},
+      {field:'isimuatan', re:/\bisi(?:\s*muatan(?:nya)?)?\b/i},
+      {field:'qtykoli', re:/\b(qty\s*koli|jumlah koli|banyak koli|koli)\b/i},
+      {field:'ukuran', re:/\bukuran\b/i},
     ];
     const ex = voiceExtractByMarkers(text, markers);
     if(ex.pelabuhan) result.pelabuhan = voiceCapitalize(ex.pelabuhan.raw);
@@ -2460,15 +2488,44 @@ function voiceMakeTallyHandler(jenis){
     if(ex.voyage) result.voyage = ex.voyage.raw;
     if(ex.etdeta) result.etdeta = ex.etdeta.raw;
     if(ex.haritanggal) result.haritanggal = parseIndoDate(ex.haritanggal.marker+' '+ex.haritanggal.raw) || parseIndoDate(ex.haritanggal.raw);
+    if(ex.pengirim) result.pengirim = voiceCapitalize(ex.pengirim.raw);
+    if(ex.penerima) result.penerima = voiceCapitalize(ex.penerima.raw);
+    if(ex.tujuan) result.tujuan = voiceCapitalize(ex.tujuan.raw);
+    if(ex.isimuatan) result.isimuatan = voiceCapitalize(ex.isimuatan.raw);
+    if(ex.qtykoli) result.qtykoli = parseIndoNumber(ex.qtykoli.raw);
+    if(ex.ukuran) result.ukuran = ex.ukuran.raw;
     return result;
   }
   function apply(fields){
     if(!document.getElementById(`tly-${jenis}-kapal`)) return false; // bukan lagi di halaman ini
-    if(fields.pelabuhan) document.getElementById(`tly-${jenis}-pelabuhan`).value = fields.pelabuhan;
-    if(fields.kapal) document.getElementById(`tly-${jenis}-kapal`).value = fields.kapal;
-    if(fields.voyage) document.getElementById(`tly-${jenis}-voyage`).value = fields.voyage;
-    if(fields.etdeta) document.getElementById(`tly-${jenis}-etdeta`).value = fields.etdeta;
-    if(fields.haritanggal) document.getElementById(`tly-${jenis}-hari-tanggal`).value = fields.haritanggal;
+    // Simpan dulu apa yang sudah diketik manual (kepala formulir & baris muatan) sebelum
+    // formulir digambar ulang, supaya tidak tertimpa oleh render() di bawah.
+    readTallyFormHeaderFromDOM(jenis);
+    readTallyFormRowsFromDOM(jenis);
+    const h = TALLY_FORM_HEADER[jenis];
+    if(fields.pelabuhan) h.pelabuhan = fields.pelabuhan;
+    if(fields.kapal) h.kapal = fields.kapal;
+    if(fields.voyage) h.voyage = fields.voyage;
+    if(fields.etdeta) h.etdeta = fields.etdeta;
+    if(fields.haritanggal) h.hariTanggal = fields.haritanggal;
+
+    const adaDataBaris = fields.pengirim || fields.penerima || fields.tujuan || fields.isimuatan || fields.qtykoli!=null || fields.ukuran;
+    if(adaDataBaris){
+      const rows = TALLY_FORM_ROWS[jenis];
+      // isi baris kosong pertama; kalau semua baris sudah terisi, tambah baris baru dulu.
+      let idx = rows.findIndex(rr=> TALLY_ROW_FIELDS.every(f=> String(rr[f]||'').trim()===''));
+      if(idx===-1){ rows.push(blankTallyRow()); idx = rows.length-1; }
+      const r = rows[idx];
+      if(fields.pengirim) r.pengirim = fields.pengirim;
+      if(fields.penerima) r.penerima = fields.penerima;
+      if(fields.tujuan) r.tujuan = fields.tujuan;
+      if(fields.isimuatan){ r.isiMuatanLap = fields.isimuatan; r.isiMuatanVer = fields.isimuatan; }
+      if(fields.qtykoli!=null){ r.qtyKoliLap = fields.qtykoli; r.qtyKoliVer = fields.qtykoli; }
+      if(fields.ukuran){ r.ukuranDikenakan = fields.ukuran; r.ukuranSeharusnya = fields.ukuran; }
+      // sediakan satu baris kosong lagi, supaya ucapan berikutnya otomatis lanjut ke baris baru.
+      if(rows.every(rr=> TALLY_ROW_FIELDS.some(f=> String(rr[f]||'').trim()!==''))) rows.push(blankTallyRow());
+    }
+    render();
     return true;
   }
   function missing(fields){
@@ -2581,16 +2638,16 @@ const VOICE_HANDLERS = {
   },
   'tally-muat-input': {
     label: 'Input Tally Muat',
-    example: 'cukup sebut kepala formulirnya, mis. "kapal km jetliner voyage 12 hari tanggal hari ini" — baris muatan tetap diisi manual',
+    example: 'sebut kepala formulir dan/atau satu baris muatan sekaligus, mis. "kapal km jetliner voyage 12 pengirim PT Sinar penerima Toko Jaya tujuan Wanci isi muatan sembako qty koli 10 ukuran 2 ton" — ucapkan lagi untuk baris muatan berikutnya',
     ...voiceMakeTallyHandler('muat'),
-    fieldLabels: { pelabuhan:'Pelabuhan Muat', kapal:'Kapal', voyage:'Voyage', etdeta:'ETD', haritanggal:'Hari, Tanggal Verifikasi' },
+    fieldLabels: { pelabuhan:'Pelabuhan Muat', kapal:'Kapal', voyage:'Voyage', etdeta:'ETD', haritanggal:'Hari, Tanggal Verifikasi', pengirim:'Baris Muatan: Pengirim', penerima:'Baris Muatan: Penerima', tujuan:'Baris Muatan: Tujuan', isimuatan:'Baris Muatan: Isi Muatan', qtykoli:'Baris Muatan: Qty Koli', ukuran:'Baris Muatan: Ukuran (Ton/M³)' },
     triggerTest: (text)=> /\btally muat\b/i.test(text)
   },
   'tally-bongkar-input': {
     label: 'Input Tally Bongkar',
-    example: 'cukup sebut kepala formulirnya, mis. "kapal km jetliner voyage 12 hari tanggal hari ini" — baris muatan tetap diisi manual',
+    example: 'sebut kepala formulir dan/atau satu baris muatan sekaligus, mis. "kapal km jetliner voyage 12 pengirim PT Sinar penerima Toko Jaya tujuan Wanci isi muatan sembako qty koli 10 ukuran 2 ton" — ucapkan lagi untuk baris muatan berikutnya',
     ...voiceMakeTallyHandler('bongkar'),
-    fieldLabels: { pelabuhan:'Pelabuhan Bongkar', kapal:'Kapal', voyage:'Voyage', etdeta:'ETA', haritanggal:'Hari, Tanggal Verifikasi' },
+    fieldLabels: { pelabuhan:'Pelabuhan Bongkar', kapal:'Kapal', voyage:'Voyage', etdeta:'ETA', haritanggal:'Hari, Tanggal Verifikasi', pengirim:'Baris Muatan: Pengirim', penerima:'Baris Muatan: Penerima', tujuan:'Baris Muatan: Tujuan', isimuatan:'Baris Muatan: Isi Muatan', qtykoli:'Baris Muatan: Qty Koli', ukuran:'Baris Muatan: Ukuran (Ton/M³)' },
     triggerTest: (text)=> /\btally bongkar\b/i.test(text)
   },
   pnbp: {
@@ -3797,6 +3854,122 @@ function buildPagedA4Pdf(canvas, printDiv, orientation){
   return pdf;
 }
 
+/* ===== Keamanan & keaslian dokumen PDF (berlaku utk SEMUA laporan yang bisa diunduh PDF) =====
+   Setiap PDF yang diunduh diberi: (1) watermark diagonal berulang berisi kode unik dokumen,
+   di setiap halaman, ukurannya dihitung dari dimensi asli kertas A4 (pageWmm x pageHmm) bukan
+   dari resolusi render html, supaya selalu pas & konsisten di semua laporan apa pun orientasinya;
+   (2) kode verifikasi unik (hash) + QR code + jejak siapa & kapan dokumen dicetak, dicetak di
+   halaman terakhir. Bila dokumen difoto ulang/diedit lalu dicetak ulang, kode & watermark akan
+   terlihat tidak konsisten dengan catatan sistem, sehingga menyulitkan pemalsuan & manipulasi. */
+async function sha256HexSafe(text){
+  try{
+    const enc = new TextEncoder().encode(text);
+    const buf = await crypto.subtle.digest('SHA-256', enc);
+    return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+  }catch(e){
+    let h1 = 0, h2 = 0;
+    for(let i=0;i<text.length;i++){
+      h1 = (Math.imul(31,h1) + text.charCodeAt(i))|0;
+      h2 = (Math.imul(131,h2) + text.charCodeAt(i)*7)|0;
+    }
+    return (Math.abs(h1).toString(16).padStart(8,'0')+Math.abs(h2).toString(16).padStart(8,'0'));
+  }
+}
+function formatVerifCode(hex){
+  const c = hex.slice(0,12).toUpperCase();
+  return (c.match(/.{1,4}/g)||[c]).join('-');
+}
+async function generateDocVerification(docLabel){
+  const waktu = new Date();
+  const petugas = (typeof CURRENT_USER!=='undefined' && CURRENT_USER) ? (CURRENT_USER.name+' ('+CURRENT_USER.nrp+')') : '-';
+  const raw = docLabel+'|'+waktu.toISOString()+'|'+petugas+'|'+Math.random().toString(36).slice(2)+'|'+Math.random().toString(36).slice(2);
+  const hex = await sha256HexSafe(raw);
+  return { kode: formatVerifCode(hex), waktu, petugas };
+}
+function makeQrDataUrl(text){
+  return new Promise((resolve)=>{
+    if(typeof QRCode==='undefined'){ resolve(null); return; }
+    const holder = document.createElement('div');
+    holder.style.cssText = 'position:fixed;left:-9999px;top:0;background:#fff;';
+    document.body.appendChild(holder);
+    try{
+      new QRCode(holder, {text: text, width:220, height:220, correctLevel: QRCode.CorrectLevel.M});
+      setTimeout(()=>{
+        const canvasEl = holder.querySelector('canvas');
+        const imgEl = holder.querySelector('img');
+        let dataUrl = null;
+        if(canvasEl) dataUrl = canvasEl.toDataURL('image/png');
+        else if(imgEl && imgEl.src) dataUrl = imgEl.src;
+        document.body.removeChild(holder);
+        resolve(dataUrl);
+      }, 80);
+    }catch(e){
+      document.body.removeChild(holder);
+      resolve(null);
+    }
+  });
+}
+// Watermark diagonal berulang, dihitung penuh dari ukuran kertas A4 (pageWmm x pageHmm)
+// supaya konsisten di semua laporan, apa pun ukuran/skala render HTML sumbernya.
+function drawPdfWatermark(pdf, pageWmm, pageHmm, kode){
+  const text = 'SISTEM OPERASIONAL KENDARI  •  DOKUMEN ASLI  •  '+kode;
+  try{
+    pdf.saveGraphicsState();
+    pdf.setGState(new pdf.GState({opacity:0.065}));
+  }catch(e){}
+  pdf.setFont('helvetica','bold');
+  pdf.setFontSize(12.5);
+  pdf.setTextColor(140,100,25);
+  const stepX = 95, stepY = 30;
+  for(let y=-pageHmm*0.4; y<pageHmm*1.4; y+=stepY){
+    for(let x=-pageWmm*0.5; x<pageWmm*1.5; x+=stepX){
+      pdf.text(text, x, y, {angle:35});
+    }
+  }
+  try{
+    pdf.setGState(new pdf.GState({opacity:1}));
+    pdf.restoreGraphicsState();
+  }catch(e){}
+}
+// Menambahkan watermark di semua halaman + blok kode verifikasi/QR di halaman terakhir.
+// docLabel = string identitas dokumen (jenis laporan + periode/nomor) yang ikut menentukan kode.
+async function finalizePdfSecurity(pdf, orientation, docLabel){
+  orientation = orientation || 'p';
+  const pageWmm = orientation==='l' ? 297 : 210;
+  const pageHmm = orientation==='l' ? 210 : 297;
+  const { kode, waktu, petugas } = await generateDocVerification(docLabel||'Dokumen');
+  const totalPages = pdf.internal.getNumberOfPages();
+  for(let p=1; p<=totalPages; p++){
+    pdf.setPage(p);
+    drawPdfWatermark(pdf, pageWmm, pageHmm, kode);
+  }
+  pdf.setPage(totalPages);
+  const qrText = 'KODE-VERIFIKASI:'+kode+' | DOKUMEN:'+docLabel+' | DICETAK:'+waktu.toISOString()+' | OLEH:'+petugas;
+  const qrDataUrl = await makeQrDataUrl(qrText);
+  const qrSize = 16;
+  const boxW = pageWmm - PDF_MARGIN_MM*2;
+  const boxH = qrSize + 3;
+  const boxX = PDF_MARGIN_MM;
+  const boxY = pageHmm - PDF_MARGIN_MM - boxH;
+  pdf.setFillColor(255,255,255);
+  pdf.setDrawColor(210,200,170);
+  pdf.roundedRect(boxX, boxY, boxW, boxH, 1.2, 1.2, 'FD');
+  if(qrDataUrl){
+    pdf.addImage(qrDataUrl, 'PNG', boxX+2, boxY+1.5, qrSize-3, qrSize-3);
+  }
+  const textX = boxX + qrSize + 3;
+  pdf.setFont('helvetica','bold');
+  pdf.setFontSize(7.5);
+  pdf.setTextColor(30,40,60);
+  pdf.text('Kode Verifikasi Dokumen: '+kode, textX, boxY+5);
+  pdf.setFont('helvetica','normal');
+  pdf.setFontSize(6.5);
+  pdf.setTextColor(90,90,90);
+  pdf.text('Dicetak '+waktu.toLocaleString('id-ID')+' oleh '+petugas, textX, boxY+8.5);
+  pdf.text('Dokumen sah bila kode & QR di atas sesuai catatan sistem. Perubahan pada isi dokumen membuat kode ini tidak berlaku (indikasi manipulasi).', textX, boxY+11.8, {maxWidth: boxW - (textX-boxX) - 2});
+  return { kode, waktu };
+}
+
 function previewPdf(){
   const bulan = document.getElementById('lap-month-select').value;
   const printDiv = buildPdfPrintDiv(bulan);
@@ -3826,9 +3999,10 @@ function previewPdf(){
 function confirmDownloadPdf(bulan){
   closeModal();
   const printDiv = buildPdfPrintDiv(bulan);
-  html2canvas(printDiv, {scale:2, backgroundColor:'#ffffff'}).then(canvas=>{
+  html2canvas(printDiv, {scale:2, backgroundColor:'#ffffff'}).then(async canvas=>{
     const pdf = buildPagedA4Pdf(canvas, printDiv);
     document.body.removeChild(printDiv);
+    await finalizePdfSecurity(pdf, 'p', 'Laporan Arus Kas '+bulan);
     pdf.save('Laporan_Arus_Kas_'+bulan+'.pdf');
     toast('File PDF diunduh ('+pdf.internal.getNumberOfPages()+' halaman).');
   }).catch(err=>{
@@ -4393,9 +4567,10 @@ function previewKunjunganPdf(){
 function confirmDownloadKunjunganPdf(bulan){
   closeModal();
   const printDiv = buildKunjunganPrintDiv(bulan);
-  html2canvas(printDiv, {scale:2, backgroundColor:'#ffffff'}).then(canvas=>{
+  html2canvas(printDiv, {scale:2, backgroundColor:'#ffffff'}).then(async canvas=>{
     const pdf = buildPagedA4Pdf(canvas, printDiv, 'l');
     document.body.removeChild(printDiv);
+    await finalizePdfSecurity(pdf, 'l', 'Laporan Kunjungan Kapal '+bulan);
     pdf.save('Laporan_Kunjungan_Kapal_'+bulan+'.pdf');
     toast('File PDF diunduh ('+pdf.internal.getNumberOfPages()+' halaman).');
   }).catch(err=>{
@@ -4866,9 +5041,10 @@ function previewPaspelPdf(){
 function confirmDownloadPaspelPdf(bulan){
   closeModal();
   const printDiv = buildPaspelPrintDiv(bulan);
-  html2canvas(printDiv, {scale:2, backgroundColor:'#ffffff'}).then(canvas=>{
+  html2canvas(printDiv, {scale:2, backgroundColor:'#ffffff'}).then(async canvas=>{
     const pdf = buildPagedA4Pdf(canvas, printDiv, 'p');
     document.body.removeChild(printDiv);
+    await finalizePdfSecurity(pdf, 'p', 'Laporan Paspel '+bulan);
     pdf.save('Laporan_Paspel_'+bulan+'.pdf');
     toast('File PDF diunduh ('+pdf.internal.getNumberOfPages()+' halaman).');
   }).catch(err=>{
@@ -5375,9 +5551,10 @@ function previewMissKeaganPdf(){
 function confirmDownloadMissKeaganPdf(bulan){
   closeModal();
   const printDiv = buildMissKeaganPrintDiv(bulan);
-  html2canvas(printDiv, {scale:2, backgroundColor:'#ffffff'}).then(canvas=>{
+  html2canvas(printDiv, {scale:2, backgroundColor:'#ffffff'}).then(async canvas=>{
     const pdf = buildPagedA4Pdf(canvas, printDiv, 'l');
     document.body.removeChild(printDiv);
+    await finalizePdfSecurity(pdf, 'l', 'Laporan MISS Keagenan '+bulan);
     pdf.save('Laporan_MISS_Keagenan_'+bulan+'.pdf');
     toast('File PDF diunduh ('+pdf.internal.getNumberOfPages()+' halaman).');
   }).catch(err=>{
@@ -5406,6 +5583,25 @@ function tallyPlaceDateLabel(s){
 function tallyRecordsFor(jenis){
   return TALLY.records.filter(r=>r.jenis===jenis).slice().sort((a,b)=>(b.hariTanggal||'').localeCompare(a.hariTanggal||''));
 }
+// Kunci penggabungan laporan: Berita Acara dengan Hari/Tanggal Verifikasi & Voyage yang sama
+// (untuk jenis yang sama, muat/bongkar tetap terpisah) digabung jadi SATU laporan cetak.
+function tallyGroupKey(r){
+  return (r.hariTanggal||'')+'|'+String(r.voyage||'').trim().toLowerCase();
+}
+// Mengelompokkan seluruh Berita Acara per jenis berdasarkan tallyGroupKey, terurut terbaru dahulu.
+function tallyGroupsFor(jenis){
+  const list = tallyRecordsFor(jenis);
+  const map = new Map();
+  list.forEach(r=>{
+    const key = tallyGroupKey(r);
+    if(!map.has(key)) map.set(key, []);
+    map.get(key).push(r);
+  });
+  return Array.from(map.entries()).map(([key, records])=>({
+    key,
+    records: records.slice().sort((a,b)=>(a.dibuatPada||'').localeCompare(b.dibuatPada||''))
+  })).sort((a,b)=>(b.records[0].hariTanggal||'').localeCompare(a.records[0].hariTanggal||''));
+}
 const TALLY_ROW_FIELDS = ['pengirim','penerima','tujuan','isiMuatanLap','qtyKoliLap','ukuranDikenakan','isiMuatanVer','qtyKoliVer','ukuranTon','ukuranM3','ukuranSeharusnya'];
 // Menghitung selisih satu baris (Ukuran Seharusnya - Ukuran Dikenakan) bila keduanya angka.
 function tallyRowSelisih(r){
@@ -5432,12 +5628,25 @@ function readTallyFormRowsFromDOM(jenis){
     });
   });
 }
+// Simpan nilai kepala formulir yang sedang tampil di DOM ke state TALLY_FORM_HEADER, supaya tidak
+// hilang saat formulir digambar ulang (dipanggil sebelum setiap render() yang dipicu dari form ini).
+function readTallyFormHeaderFromDOM(jenis){
+  const h = TALLY_FORM_HEADER[jenis];
+  const g = id => document.getElementById(id);
+  const pel = g(`tly-${jenis}-pelabuhan`); if(pel) h.pelabuhan = pel.value;
+  const kap = g(`tly-${jenis}-kapal`); if(kap) h.kapal = kap.value;
+  const voy = g(`tly-${jenis}-voyage`); if(voy) h.voyage = voy.value;
+  const etd = g(`tly-${jenis}-etdeta`); if(etd) h.etdeta = etd.value;
+  const ht = g(`tly-${jenis}-hari-tanggal`); if(ht) h.hariTanggal = ht.value;
+}
 function addTallyRow(jenis){
+  readTallyFormHeaderFromDOM(jenis);
   readTallyFormRowsFromDOM(jenis);
   TALLY_FORM_ROWS[jenis].push(blankTallyRow());
   render();
 }
 function removeTallyRow(jenis, idx){
+  readTallyFormHeaderFromDOM(jenis);
   readTallyFormRowsFromDOM(jenis);
   TALLY_FORM_ROWS[jenis].splice(idx,1);
   if(TALLY_FORM_ROWS[jenis].length===0) TALLY_FORM_ROWS[jenis].push(blankTallyRow());
@@ -5449,8 +5658,10 @@ function tallyJenisLabel(jenis){ return jenis==='muat' ? 'Muat' : 'Bongkar'; }
 function renderTallyInput(jenis, c, actions){
   const today = new Date().toISOString().slice(0,10);
   const rows = TALLY_FORM_ROWS[jenis];
+  const h = TALLY_FORM_HEADER[jenis];
   const pelabuhanLabel = jenis==='muat' ? 'Pelabuhan Muat' : 'Pelabuhan Bongkar';
   const waktuLabel = jenis==='muat' ? 'ETD' : 'ETA';
+  const hdrChg = `readTallyFormHeaderFromDOM('${jenis}')`;
   c.innerHTML = `
     <div class="card">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
@@ -5458,13 +5669,13 @@ function renderTallyInput(jenis, c, actions){
         <button type="button" class="btn-voice" onclick="openVoiceCommand('tally-${jenis}-input')"><span class="mic-ico">🎤</span> Isi dengan Suara</button>
       </div>
       <div class="form-grid">
-        <div class="form-field"><label>${pelabuhanLabel}</label><input type="text" id="tly-${jenis}-pelabuhan" value="${jenis==='muat'?'Kendari':''}" placeholder="cth. Kendari"></div>
-        <div class="form-field"><label>Kapal</label><input type="text" id="tly-${jenis}-kapal" value="KM. TILONGKABILA" placeholder="cth. KM. Sabuk Nusantara 78"></div>
-        <div class="form-field"><label>Voyage</label><input type="text" id="tly-${jenis}-voyage" placeholder="cth. 12"></div>
-        <div class="form-field"><label>${waktuLabel}</label><input type="text" id="tly-${jenis}-etdeta" placeholder="cth. 14:00 WITA"></div>
-        <div class="form-field"><label>Hari, Tanggal Verifikasi</label><input type="date" id="tly-${jenis}-hari-tanggal" value="${today}"></div>
+        <div class="form-field"><label>${pelabuhanLabel}</label><input type="text" id="tly-${jenis}-pelabuhan" value="${escapeHtml(h.pelabuhan)}" placeholder="cth. Kendari" onchange="${hdrChg}"></div>
+        <div class="form-field"><label>Kapal</label><input type="text" id="tly-${jenis}-kapal" value="${escapeHtml(h.kapal)}" placeholder="cth. KM. Sabuk Nusantara 78" onchange="${hdrChg}"></div>
+        <div class="form-field"><label>Voyage</label><input type="text" id="tly-${jenis}-voyage" value="${escapeHtml(h.voyage)}" placeholder="cth. 12" onchange="${hdrChg}"></div>
+        <div class="form-field"><label>${waktuLabel}</label><input type="text" id="tly-${jenis}-etdeta" value="${escapeHtml(h.etdeta)}" placeholder="cth. 14:00 WITA" onchange="${hdrChg}"></div>
+        <div class="form-field"><label>Hari, Tanggal Verifikasi</label><input type="date" id="tly-${jenis}-hari-tanggal" value="${h.hariTanggal || today}" onchange="${hdrChg}"></div>
       </div>
-      <p style="font-size:11px;color:var(--ink-soft);margin:8px 0 0;">*Nama kapal${jenis==='muat'?' &amp; pelabuhan muat':''} sudah diisi default (KM. TILONGKABILA${jenis==='muat'?', Kendari':''}) — ubah bila voyage kali ini berbeda.</p>
+      <p style="font-size:11px;color:var(--ink-soft);margin:8px 0 0;">*Nama kapal &amp; pelabuhan ${jenis==='muat'?'muat':'bongkar'} sudah diisi default (KM. TILONGKABILA, Kendari) — kedua field ini bisa diketik manual bila kapal atau pelabuhannya berbeda dari biasanya.</p>
     </div>
     <div class="card" style="overflow:auto;">
       <p class="card-title">Daftar Muatan dari Laporan Transaksi &amp; Shipping Instruction — Hasil Verifikasi</p>
@@ -5487,60 +5698,58 @@ function renderTallyInput(jenis, c, actions){
         <tbody>
           ${rows.map((r,i)=>{
             const selisih = tallyRowSelisih(r);
-            return `<tr>
+            const rowDiff = tallyRowHasDiff(r);
+            const chg = `readTallyFormHeaderFromDOM('${jenis}');readTallyFormRowsFromDOM('${jenis}');render();`;
+            return `<tr${rowDiff?` style=\"background:rgba(178,58,46,0.07);\"`:''}>
             <td>${i+1}</td>
             <td><input type="text" id="tly-${jenis}-row-${i}-pengirim" value="${escapeHtml(r.pengirim)}" style="width:110px;"></td>
             <td><input type="text" id="tly-${jenis}-row-${i}-penerima" value="${escapeHtml(r.penerima)}" style="width:110px;"></td>
             <td><input type="text" id="tly-${jenis}-row-${i}-tujuan" value="${escapeHtml(r.tujuan)}" style="width:90px;"></td>
-            <td><input type="text" id="tly-${jenis}-row-${i}-isiMuatanLap" value="${escapeHtml(r.isiMuatanLap)}" style="width:110px;"></td>
-            <td><input type="number" id="tly-${jenis}-row-${i}-qtyKoliLap" value="${escapeHtml(r.qtyKoliLap)}" style="width:65px;"></td>
-            <td><input type="text" id="tly-${jenis}-row-${i}-ukuranDikenakan" value="${escapeHtml(r.ukuranDikenakan)}" placeholder="cth. 1,2 Ton" style="width:85px;"></td>
-            <td><input type="text" id="tly-${jenis}-row-${i}-isiMuatanVer" value="${escapeHtml(r.isiMuatanVer)}" style="width:110px;"></td>
-            <td><input type="number" id="tly-${jenis}-row-${i}-qtyKoliVer" value="${escapeHtml(r.qtyKoliVer)}" style="width:65px;"></td>
+            <td><input type="text" id="tly-${jenis}-row-${i}-isiMuatanLap" value="${escapeHtml(r.isiMuatanLap)}" style="width:110px;" onchange="${chg}"></td>
+            <td><input type="number" id="tly-${jenis}-row-${i}-qtyKoliLap" value="${escapeHtml(r.qtyKoliLap)}" style="width:65px;" onchange="${chg}"></td>
+            <td><input type="text" id="tly-${jenis}-row-${i}-ukuranDikenakan" value="${escapeHtml(r.ukuranDikenakan)}" placeholder="cth. 1,2 Ton" style="width:85px;" onchange="${chg}"></td>
+            <td><input type="text" id="tly-${jenis}-row-${i}-isiMuatanVer" value="${escapeHtml(r.isiMuatanVer)}" style="width:110px;" onchange="${chg}"></td>
+            <td><input type="number" id="tly-${jenis}-row-${i}-qtyKoliVer" value="${escapeHtml(r.qtyKoliVer)}" style="width:65px;" onchange="${chg}"></td>
             <td><input type="number" id="tly-${jenis}-row-${i}-ukuranTon" value="${escapeHtml(r.ukuranTon)}" style="width:65px;"></td>
             <td><input type="number" id="tly-${jenis}-row-${i}-ukuranM3" value="${escapeHtml(r.ukuranM3)}" style="width:65px;"></td>
-            <td><input type="text" id="tly-${jenis}-row-${i}-ukuranSeharusnya" value="${escapeHtml(r.ukuranSeharusnya)}" placeholder="cth. 1,5 Ton" style="width:85px;" onchange="readTallyFormRowsFromDOM('${jenis}');render();"></td>
+            <td><input type="text" id="tly-${jenis}-row-${i}-ukuranSeharusnya" value="${escapeHtml(r.ukuranSeharusnya)}" placeholder="cth. 1,5 Ton" style="width:85px;" onchange="${chg}"></td>
             <td style="white-space:nowrap;">
               ${selisih!==null && selisih!==0 ? `<span style="color:var(--rust);font-weight:600;font-size:11.5px;">Δ ${selisih>0?'+':''}${selisih.toLocaleString('id-ID')}</span>` : ''}
+              ${rowDiff && (selisih===null || selisih===0) ? `<span style="color:var(--rust);font-weight:600;font-size:11.5px;">≠ isi/koli</span>` : ''}
               <button class="btn btn-sm btn-rust" onclick="removeTallyRow('${jenis}',${i})">Hapus</button>
             </td>
           </tr>`;}).join('')}
         </tbody>
       </table>
       <button class="btn btn-ghost btn-sm" style="margin-top:12px;" onclick="addTallyRow('${jenis}')">+ Tambah baris muatan</button>
-      <p style="font-size:11px;color:var(--ink-soft);margin:10px 0 0;">*Kolom "Ukuran Dikenakan" &amp; "Ukuran Seharusnya" diisi satu nilai gabungan Ton/M³ sesuai satuan yang berlaku pada muatan tersebut, persis seperti pada formulir Berita Acara resmi.</p>
+      <p style="font-size:11px;color:var(--ink-soft);margin:10px 0 0;">*Kolom "Ukuran Dikenakan" &amp; "Ukuran Seharusnya" diisi satu nilai gabungan Ton/M³ sesuai satuan yang berlaku pada muatan tersebut, persis seperti pada formulir Berita Acara resmi. Baris yang isi/qty/ukurannya berbeda antara SI dengan Verifikasi otomatis ditandai merah.</p>
     </div>
-    <div class="card">
-      <p class="card-title">Hasil &amp; kesimpulan verifikasi</p>
-      <p style="font-size:11.5px;color:var(--ink-soft);margin:-8px 0 12px;">*Pilih salah satu redaksi yang akan dicetak pada Berita Acara, sesuai hasil verifikasi di atas.</p>
-      <div class="form-grid">
-        <div class="form-field">
-          <label>Kesesuaian muatan</label>
-          <select id="tly-${jenis}-kesesuaian" onchange="render()">
-            <option value="sesuai" selected>Sesuai — diproses naik/dibongkar</option>
-            <option value="tidaksesuai">Tidak sesuai — ada ketidaksesuaian</option>
-          </select>
-        </div>
-        <div class="form-field">
-          <label>Jika tidak sesuai — total ketidaksesuaian (Ton/M³)</label>
-          <input type="text" id="tly-${jenis}-total-tidaksesuai" placeholder="cth. 2,5 Ton">
-          <button type="button" class="btn btn-ghost btn-sm" style="margin-top:6px;" onclick="applyTallySelisihSuggestion('${jenis}')">Isi otomatis dari selisih baris di atas</button>
-        </div>
-      </div>
-      <button class="btn btn-gold" style="margin-top:6px;" onclick="submitTally('${jenis}')">Simpan Berita Acara Tally ${tallyJenisLabel(jenis)}</button>
-    </div>
+    ${tallyKesesuaianSummaryHtml(jenis)}
   `;
 }
-// Mengisi kotak "total ketidaksesuaian" otomatis dari jumlah selisih (Ukuran Seharusnya - Ukuran Dikenakan)
-// seluruh baris muatan yang sudah diketik. Jika hasilnya 0 / tidak ada selisih, dikosongkan (nihil).
-function applyTallySelisihSuggestion(jenis){
-  readTallyFormRowsFromDOM(jenis);
-  const total = tallyTotalSelisih(TALLY_FORM_ROWS[jenis]);
-  const el = document.getElementById(`tly-${jenis}-total-tidaksesuai`);
-  if(el) el.value = total ? total.toLocaleString('id-ID') + ' Ton/M³' : '';
-  const sel = document.getElementById(`tly-${jenis}-kesesuaian`);
-  if(sel) sel.value = total ? 'tidaksesuai' : 'sesuai';
-  render();
+// Kartu ringkasan "Hasil & kesimpulan verifikasi" — SEPENUHNYA otomatis, dihitung langsung dari
+// baris muatan pada tabel di atas (tidak ada lagi input manual "Kesesuaian" / "Total ketidaksesuaian"),
+// supaya kalimat kesimpulan yang tercetak pada Berita Acara selalu sinkron dengan datanya.
+function tallyKesesuaianSummaryHtml(jenis){
+  const k = tallyComputeKesesuaian(TALLY_FORM_ROWS[jenis]);
+  const sesuai = k.kesesuaian==='sesuai';
+  return `
+    <div class="card">
+      <p class="card-title">Hasil &amp; kesimpulan verifikasi <span style="font-weight:400;font-size:11px;color:var(--ink-soft);">(otomatis dari tabel di atas)</span></p>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:${sesuai?'0':'8px'};">
+        <span class="badge ${sesuai?'approved':'rejected'}" style="font-size:13px;">${sesuai?'Sesuai':'Tidak sesuai'}</span>
+        <span style="font-size:12px;color:var(--ink-soft);">${sesuai
+          ? 'Seluruh isi muatan, qty koli, dan ukuran Ton/M³ pada Laporan/SI sudah cocok dengan Hasil Verifikasi.'
+          : 'Ada perbedaan antara Laporan/Shipping Instruction (SI) dengan Hasil Verifikasi — dirinci di bawah, dan otomatis tercetak pada Berita Acara.'}</span>
+      </div>
+      ${!sesuai ? `
+      <div style="font-size:12.5px;background:#FBEAE7;border:1px solid var(--rust);border-radius:6px;padding:10px 12px;line-height:1.7;">
+        <div style="font-weight:700;color:var(--rust-dark);margin-bottom:2px;">Total perbedaan: ${k.ringkasanText}</div>
+        ${k.lines.map(l=>`<div>• ${l}</div>`).join('')}
+      </div>` : ''}
+      <button class="btn btn-gold" style="margin-top:12px;" onclick="submitTally('${jenis}')">Simpan Berita Acara Tally ${tallyJenisLabel(jenis)}</button>
+    </div>
+  `;
 }
 function submitTally(jenis){
   readTallyFormRowsFromDOM(jenis);
@@ -5549,8 +5758,6 @@ function submitTally(jenis){
   const voyage = document.getElementById(`tly-${jenis}-voyage`).value.trim();
   const etdEta = document.getElementById(`tly-${jenis}-etdeta`).value.trim();
   const hariTanggal = document.getElementById(`tly-${jenis}-hari-tanggal`).value;
-  const kesesuaian = document.getElementById(`tly-${jenis}-kesesuaian`).value;
-  const totalKetidaksesuaian = document.getElementById(`tly-${jenis}-total-tidaksesuai`).value.trim();
   if(!kapal || !hariTanggal){
     toast('Nama Kapal dan Hari/Tanggal Verifikasi wajib diisi.');
     return;
@@ -5558,15 +5765,19 @@ function submitTally(jenis){
   const rows = TALLY_FORM_ROWS[jenis]
     .map(r=>({...r}))
     .filter(r=> TALLY_ROW_FIELDS.some(f=> String(r[f]||'').trim()!==''));
+  // Kesesuaian & total ketidaksesuaian dihitung otomatis dari rows di atas — bukan input manual —
+  // supaya note yang tersimpan selalu sinkron dengan data tabel.
+  const k = tallyComputeKesesuaian(rows);
   const rec = {
     id: uidT(), jenis, pelabuhan, kapal, voyage, etdEta, hariTanggal, rows,
-    kesesuaian, totalKetidaksesuaian,
+    kesesuaian: k.kesesuaian, totalKetidaksesuaian: k.totalTonLabel,
     dibuatOleh: CURRENT_USER.name, dibuatPada: new Date().toISOString()
   };
   TALLY.records.push(rec);
   saveTallyData();
   TALLY_FORM_ROWS[jenis] = [blankTallyRow()];
-  toast('Berita Acara Tally '+tallyJenisLabel(jenis)+' tersimpan.');
+  TALLY_FORM_HEADER[jenis] = tallyDefaultHeader();
+  toast('Berita Acara Tally '+tallyJenisLabel(jenis)+' tersimpan ('+(k.kesesuaian==='sesuai'?'Sesuai':'Tidak sesuai — '+k.ringkasanText)+').');
   goto(jenis==='muat' ? 'tally-muat-riwayat' : 'tally-bongkar-riwayat');
 }
 
@@ -5586,15 +5797,18 @@ function renderTallyRiwayat(jenis, c, actions){
   `;
 }
 function tallyRowHtml(r){
+  // Badge dihitung ulang langsung dari baris muatan (bukan hanya membaca r.kesesuaian tersimpan),
+  // supaya data lama yang sempat tidak sinkron pun otomatis tampil benar begitu dibuka lagi.
+  const k = tallyComputeKesesuaian(r.rows);
   return `<tr>
     <td>${hariTanggalLabel(r.hariTanggal)}</td>
     <td class="name-cell">${escapeHtml(r.kapal||'-')}</td>
     <td>${escapeHtml(r.voyage||'-')}</td>
     <td>${escapeHtml(r.pelabuhan||'-')}</td>
     <td>${(r.rows||[]).length}</td>
-    <td>${r.kesesuaian==='tidaksesuai' ? '<span class="badge rejected">Tidak sesuai</span>' : '<span class="badge approved">Sesuai</span>'}</td>
+    <td>${k.kesesuaian==='tidaksesuai' ? `<span class="badge rejected" title="${escapeHtml(k.ringkasanText)}">Tidak sesuai</span>` : '<span class="badge approved">Sesuai</span>'}</td>
     <td style="display:flex;gap:6px;">
-      <button class="btn btn-sm btn-ghost" onclick="TALLY_SELECTED_ID['${r.jenis}']='${r.id}'; goto('tally-${r.jenis}-laporan');">Cetak</button>
+      <button class="btn btn-sm btn-ghost" onclick="TALLY_SELECTED_ID['${r.jenis}']='${tallyGroupKey(r)}'; goto('tally-${r.jenis}-laporan');">Cetak</button>
       <button class="btn btn-sm btn-ghost" onclick="editTally('${r.jenis}','${r.id}')">Edit</button>
       <button class="btn btn-sm btn-rust" onclick="deleteTally('${r.jenis}','${r.id}')">Hapus</button>
     </td>
@@ -5603,46 +5817,147 @@ function tallyRowHtml(r){
 function editTally(jenis, id){
   const r = TALLY.records.find(x=>x.id===id);
   if(!r) return;
+  // Salin kepala formulir & baris muatan ke state edit sementara (TALLY_EDIT_STATE), supaya
+  // baris muatan pun bisa diubah langsung di modal ini -- bukan hanya kepala formulirnya saja.
+  TALLY_EDIT_STATE = {
+    jenis, id,
+    header: { pelabuhan: r.pelabuhan||'', kapal: r.kapal||'', voyage: r.voyage||'', etdeta: r.etdEta||'', hariTanggal: r.hariTanggal||'' },
+    rows: (r.rows && r.rows.length ? r.rows.map(row=>({...row})) : [blankTallyRow()])
+  };
+  renderEditTallyModal();
+}
+// Simpan nilai kepala formulir & baris muatan yang sedang tampil di modal edit ke TALLY_EDIT_STATE,
+// supaya tidak hilang saat modal digambar ulang (mis. sesudah menambah/menghapus baris muatan).
+function readTallyEditStateFromDOM(){
+  if(!TALLY_EDIT_STATE) return;
+  const h = TALLY_EDIT_STATE.header;
+  const g = id => document.getElementById(id);
+  const pel=g('et-pelabuhan'); if(pel) h.pelabuhan = pel.value;
+  const kap=g('et-kapal'); if(kap) h.kapal = kap.value;
+  const voy=g('et-voyage'); if(voy) h.voyage = voy.value;
+  const etd=g('et-etdeta'); if(etd) h.etdeta = etd.value;
+  const ht=g('et-hari-tanggal'); if(ht) h.hariTanggal = ht.value;
+  TALLY_EDIT_STATE.rows.forEach((row,i)=>{
+    TALLY_ROW_FIELDS.forEach(f=>{
+      const el = g(`et-row-${i}-${f}`);
+      if(el) row[f] = el.value;
+    });
+  });
+}
+function addTallyEditRow(){
+  readTallyEditStateFromDOM();
+  TALLY_EDIT_STATE.rows.push(blankTallyRow());
+  renderEditTallyModal();
+}
+function removeTallyEditRow(idx){
+  readTallyEditStateFromDOM();
+  TALLY_EDIT_STATE.rows.splice(idx,1);
+  if(TALLY_EDIT_STATE.rows.length===0) TALLY_EDIT_STATE.rows.push(blankTallyRow());
+  renderEditTallyModal();
+}
+function renderEditTallyModal(){
+  if(!TALLY_EDIT_STATE) return;
+  const { jenis, header, rows } = TALLY_EDIT_STATE;
+  const pelabuhanLabel = jenis==='muat' ? 'Pelabuhan Muat' : 'Pelabuhan Bongkar';
+  const waktuLabel = jenis==='muat' ? 'ETD' : 'ETA';
+  const k = tallyComputeKesesuaian(rows);
   document.getElementById('modal-root').innerHTML = `
     <div class="modal-overlay">
-      <div class="modal-box" style="max-width:480px;">
-        <h3>Edit data Tally ${tallyJenisLabel(jenis)}</h3>
+      <div class="modal-box" style="max-width:min(1180px,96vw);width:100%;max-height:92vh;overflow-y:auto;">
+        <h3>Edit Berita Acara Tally ${tallyJenisLabel(jenis)}</h3>
         <div class="form-grid">
-          <div class="form-field"><label>${jenis==='muat'?'Pelabuhan Muat':'Pelabuhan Bongkar'}</label><input type="text" id="et-pelabuhan" value="${escapeHtml(r.pelabuhan||'')}"></div>
-          <div class="form-field"><label>Kapal</label><input type="text" id="et-kapal" value="${escapeHtml(r.kapal||'')}"></div>
-          <div class="form-field"><label>Voyage</label><input type="text" id="et-voyage" value="${escapeHtml(r.voyage||'')}"></div>
-          <div class="form-field"><label>${jenis==='muat'?'ETD':'ETA'}</label><input type="text" id="et-etdeta" value="${escapeHtml(r.etdEta||'')}"></div>
-          <div class="form-field"><label>Hari, Tanggal Verifikasi</label><input type="date" id="et-hari-tanggal" value="${r.hariTanggal||''}"></div>
-          <div class="form-field">
-            <label>Kesesuaian</label>
-            <select id="et-kesesuaian">
-              <option value="sesuai" ${r.kesesuaian!=='tidaksesuai'?'selected':''}>Sesuai</option>
-              <option value="tidaksesuai" ${r.kesesuaian==='tidaksesuai'?'selected':''}>Tidak sesuai</option>
-            </select>
-          </div>
-          <div class="form-field"><label>Total ketidaksesuaian (Ton/M³)</label><input type="text" id="et-total-tidaksesuai" value="${escapeHtml(r.totalKetidaksesuaian||'')}"></div>
+          <div class="form-field"><label>${pelabuhanLabel}</label><input type="text" id="et-pelabuhan" value="${escapeHtml(header.pelabuhan)}" onchange="readTallyEditStateFromDOM()"></div>
+          <div class="form-field"><label>Kapal</label><input type="text" id="et-kapal" value="${escapeHtml(header.kapal)}" onchange="readTallyEditStateFromDOM()"></div>
+          <div class="form-field"><label>Voyage</label><input type="text" id="et-voyage" value="${escapeHtml(header.voyage)}" onchange="readTallyEditStateFromDOM()"></div>
+          <div class="form-field"><label>${waktuLabel}</label><input type="text" id="et-etdeta" value="${escapeHtml(header.etdeta)}" onchange="readTallyEditStateFromDOM()"></div>
+          <div class="form-field"><label>Hari, Tanggal Verifikasi</label><input type="date" id="et-hari-tanggal" value="${header.hariTanggal||''}" onchange="readTallyEditStateFromDOM()"></div>
         </div>
-        <p style="font-size:11.5px;color:var(--ink-soft);margin:10px 0 0;">Untuk mengubah baris-baris muatan, hapus data ini lalu masukkan ulang lewat menu Input.</p>
+        <p class="card-title" style="margin-top:14px;">Baris Muatan</p>
+        <div style="overflow:auto;">
+        <table class="ledger" style="min-width:1280px;">
+          <thead>
+            <tr>
+              <th rowspan="2" style="width:26px;">No</th>
+              <th rowspan="2">Pengirim</th>
+              <th rowspan="2">Penerima</th>
+              <th rowspan="2">Tujuan</th>
+              <th colspan="3" style="text-align:center;">Daftar Muatan dari Laporan Transaksi &amp; Shipping Instruction</th>
+              <th colspan="5" style="text-align:center;">Hasil Verifikasi</th>
+              <th rowspan="2"></th>
+            </tr>
+            <tr>
+              <th>Isi Muatan</th><th>Qty Koli</th><th>Ukuran Dikenakan<br><span style="font-weight:400;">(Ton/M³)</span></th>
+              <th>Isi Muatan</th><th>Qty Koli</th><th>Ton</th><th>M³</th><th>Ukuran Seharusnya<br><span style="font-weight:400;">(Ton/M³)</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows.map((r,i)=>{
+              const selisih = tallyRowSelisih(r);
+              const rowDiff = tallyRowHasDiff(r);
+              const chg = `readTallyEditStateFromDOM();renderEditTallyModal();`;
+              return `<tr${rowDiff?` style=\"background:rgba(178,58,46,0.07);\"`:''}>
+              <td>${i+1}</td>
+              <td><input type="text" id="et-row-${i}-pengirim" value="${escapeHtml(r.pengirim)}" style="width:110px;" onchange="readTallyEditStateFromDOM()"></td>
+              <td><input type="text" id="et-row-${i}-penerima" value="${escapeHtml(r.penerima)}" style="width:110px;" onchange="readTallyEditStateFromDOM()"></td>
+              <td><input type="text" id="et-row-${i}-tujuan" value="${escapeHtml(r.tujuan)}" style="width:90px;" onchange="readTallyEditStateFromDOM()"></td>
+              <td><input type="text" id="et-row-${i}-isiMuatanLap" value="${escapeHtml(r.isiMuatanLap)}" style="width:110px;" onchange="${chg}"></td>
+              <td><input type="number" id="et-row-${i}-qtyKoliLap" value="${escapeHtml(r.qtyKoliLap)}" style="width:65px;" onchange="${chg}"></td>
+              <td><input type="text" id="et-row-${i}-ukuranDikenakan" value="${escapeHtml(r.ukuranDikenakan)}" placeholder="cth. 1,2 Ton" style="width:85px;" onchange="${chg}"></td>
+              <td><input type="text" id="et-row-${i}-isiMuatanVer" value="${escapeHtml(r.isiMuatanVer)}" style="width:110px;" onchange="${chg}"></td>
+              <td><input type="number" id="et-row-${i}-qtyKoliVer" value="${escapeHtml(r.qtyKoliVer)}" style="width:65px;" onchange="${chg}"></td>
+              <td><input type="number" id="et-row-${i}-ukuranTon" value="${escapeHtml(r.ukuranTon)}" style="width:65px;" onchange="readTallyEditStateFromDOM()"></td>
+              <td><input type="number" id="et-row-${i}-ukuranM3" value="${escapeHtml(r.ukuranM3)}" style="width:65px;" onchange="readTallyEditStateFromDOM()"></td>
+              <td><input type="text" id="et-row-${i}-ukuranSeharusnya" value="${escapeHtml(r.ukuranSeharusnya)}" placeholder="cth. 1,5 Ton" style="width:85px;" onchange="${chg}"></td>
+              <td style="white-space:nowrap;">
+                ${selisih!==null && selisih!==0 ? `<span style="color:var(--rust);font-weight:600;font-size:11.5px;">Δ ${selisih>0?'+':''}${selisih.toLocaleString('id-ID')}</span>` : ''}
+                ${rowDiff && (selisih===null || selisih===0) ? `<span style="color:var(--rust);font-weight:600;font-size:11.5px;">≠ isi/koli</span>` : ''}
+                <button class="btn btn-sm btn-rust" onclick="removeTallyEditRow(${i})">Hapus</button>
+              </td>
+            </tr>`;}).join('')}
+          </tbody>
+        </table>
+        </div>
+        <button class="btn btn-ghost btn-sm" style="margin-top:10px;" onclick="addTallyEditRow()">+ Tambah baris muatan</button>
+        <div class="form-field" style="margin-top:12px;">
+          <label>Kesesuaian <span style="font-weight:400;color:var(--ink-soft);">(otomatis dari baris muatan di atas)</span></label>
+          <div style="font-size:12.5px;padding:8px 10px;border:1px solid var(--paper-dim);border-radius:6px;background:#fff;">
+            <span class="badge ${k.kesesuaian==='sesuai'?'approved':'rejected'}">${k.kesesuaian==='sesuai'?'Sesuai':'Tidak sesuai'}</span>
+            ${k.kesesuaian==='tidaksesuai' ? `<div style="margin-top:6px;color:var(--rust-dark);">Total perbedaan: ${escapeHtml(k.ringkasanText)}</div>` : ''}
+          </div>
+        </div>
         <div class="modal-actions">
-          <button class="btn btn-ghost" onclick="closeModal()">Batal</button>
-          <button class="btn btn-gold" onclick="saveEditTally('${jenis}','${id}')">Simpan perubahan</button>
+          <button class="btn btn-ghost" onclick="closeModal();TALLY_EDIT_STATE=null;">Batal</button>
+          <button class="btn btn-gold" onclick="saveEditTally()">Simpan perubahan</button>
         </div>
       </div>
     </div>
   `;
 }
-function saveEditTally(jenis, id){
+function saveEditTally(){
+  if(!TALLY_EDIT_STATE) return;
+  readTallyEditStateFromDOM();
+  const { jenis, id, header, rows } = TALLY_EDIT_STATE;
   const r = TALLY.records.find(x=>x.id===id);
   if(!r) return;
-  r.pelabuhan = document.getElementById('et-pelabuhan').value.trim();
-  r.kapal = document.getElementById('et-kapal').value.trim();
-  r.voyage = document.getElementById('et-voyage').value.trim();
-  r.etdEta = document.getElementById('et-etdeta').value.trim();
-  r.hariTanggal = document.getElementById('et-hari-tanggal').value;
-  r.kesesuaian = document.getElementById('et-kesesuaian').value;
-  r.totalKetidaksesuaian = document.getElementById('et-total-tidaksesuai').value.trim();
+  if(!header.kapal.trim() || !header.hariTanggal){
+    toast('Nama Kapal dan Hari/Tanggal Verifikasi wajib diisi.');
+    return;
+  }
+  const cleanRows = rows.map(rr=>({...rr})).filter(rr=> TALLY_ROW_FIELDS.some(f=> String(rr[f]||'').trim()!==''));
+  // Kesesuaian & total ketidaksesuaian selalu ditulis ulang otomatis dari baris muatan yang baru
+  // disimpan, supaya kalimat kesimpulan yang tercetak pada Berita Acara selalu sinkron.
+  const k = tallyComputeKesesuaian(cleanRows);
+  r.pelabuhan = header.pelabuhan.trim();
+  r.kapal = header.kapal.trim();
+  r.voyage = header.voyage.trim();
+  r.etdEta = header.etdeta.trim();
+  r.hariTanggal = header.hariTanggal;
+  r.rows = cleanRows;
+  r.kesesuaian = k.kesesuaian;
+  r.totalKetidaksesuaian = k.totalTonLabel;
   saveTallyData();
   closeModal();
+  TALLY_EDIT_STATE = null;
   toast('Perubahan data Tally '+tallyJenisLabel(jenis)+' disimpan.');
   render();
 }
@@ -5688,12 +6003,17 @@ function saveTallySettings(){
 }
 function renderTallyLaporan(jenis, c, actions){
   const list = tallyRecordsFor(jenis);
-  if(!TALLY_SELECTED_ID[jenis] || !list.some(r=>r.id===TALLY_SELECTED_ID[jenis])){
-    TALLY_SELECTED_ID[jenis] = list.length ? list[0].id : null;
+  const groups = tallyGroupsFor(jenis);
+  if(!TALLY_SELECTED_ID[jenis] || !groups.some(g=>g.key===TALLY_SELECTED_ID[jenis])){
+    TALLY_SELECTED_ID[jenis] = groups.length ? groups[0].key : null;
   }
-  actions.innerHTML = list.length ? `
+  actions.innerHTML = groups.length ? `
     <select id="tally-${jenis}-lap-select" onchange="TALLY_SELECTED_ID['${jenis}']=this.value; render()">
-      ${list.map(r=>`<option value="${r.id}" ${TALLY_SELECTED_ID[jenis]===r.id?'selected':''}>${escapeHtml(r.kapal||'-')} — ${hariTanggalLabel(r.hariTanggal)}</option>`).join('')}
+      ${groups.map(g=>{
+        const r0 = g.records[0];
+        const gabung = g.records.length>1 ? ` (${g.records.length} BA digabung)` : '';
+        return `<option value="${g.key}" ${TALLY_SELECTED_ID[jenis]===g.key?'selected':''}>${escapeHtml(r0.kapal||'-')} — Voy ${escapeHtml(r0.voyage||'-')} — ${hariTanggalLabel(r0.hariTanggal)}${gabung}</option>`;
+      }).join('')}
     </select>
     <button class="btn btn-gold" onclick="previewTallyPdf('${jenis}')">Pratinjau &amp; Unduh PDF</button>
   ` : '';
@@ -5732,14 +6052,125 @@ function tallySumFreeText(list, field){
   });
   return found ? sum.toLocaleString('id-ID') : '….';
 }
-function buildTallyPrintDiv(id){
-  const r = TALLY.records.find(x=>x.id===id);
-  if(!r) return null;
-  const jenis = r.jenis;
+// Mengecek apakah keterangan "Isi Muatan" pada Laporan/SI berbeda dengan hasil Verifikasi
+// (dibandingkan case-insensitive & abaikan spasi berlebih). Hanya dianggap beda bila kedua
+// sisi memang sudah diisi (supaya baris yang belum lengkap tidak dianggap tidak sesuai).
+function tallyRowIsiMismatch(row){
+  const lap = String(row.isiMuatanLap||'').trim().toLowerCase().replace(/\s+/g,' ');
+  const ver = String(row.isiMuatanVer||'').trim().toLowerCase().replace(/\s+/g,' ');
+  if(!lap || !ver) return false;
+  return lap !== ver;
+}
+// Baris muatan dianggap "tidak sesuai" bila salah satu dari: isi muatan, qty koli, atau
+// ukuran Ton/M³ berbeda antara Laporan/Shipping Instruction dengan Hasil Verifikasi.
+function tallyRowHasDiff(row){
+  if(tallyRowIsiMismatch(row)) return true;
+  const koliLap = parseFloat(String(row.qtyKoliLap).replace(',','.'));
+  const koliVer = parseFloat(String(row.qtyKoliVer).replace(',','.'));
+  if(!isNaN(koliLap) && !isNaN(koliVer) && koliLap !== koliVer) return true;
+  const selisihUkuran = tallyRowSelisih(row);
+  if(selisihUkuran !== null && selisihUkuran !== 0) return true;
+  return false;
+}
+// Menghitung perbedaan satu baris muatan antara Laporan Transaksi/Shipping Instruction
+// dengan Hasil Verifikasi (isi muatan, qty koli & ukuran Ton/M³), lalu mengembalikan
+// potongan teks keterangan.
+function tallyRowDiffText(row){
+  const parts = [];
+  if(tallyRowIsiMismatch(row)){
+    parts.push(`Isi Muatan SI "${escapeHtml(row.isiMuatanLap||'-')}" ≠ Verifikasi "${escapeHtml(row.isiMuatanVer||'-')}"`);
+  }
+  const koliLap = parseFloat(String(row.qtyKoliLap).replace(',','.'));
+  const koliVer = parseFloat(String(row.qtyKoliVer).replace(',','.'));
+  if(!isNaN(koliLap) && !isNaN(koliVer) && koliLap !== koliVer){
+    const d = koliVer - koliLap;
+    parts.push(`Qty Koli SI ${koliLap.toLocaleString('id-ID')} ≠ Verifikasi ${koliVer.toLocaleString('id-ID')} (selisih ${d>0?'+':''}${d.toLocaleString('id-ID')} koli)`);
+  }
+  const selisihUkuran = tallyRowSelisih(row); // Ukuran Seharusnya - Ukuran Dikenakan
+  if(selisihUkuran !== null && selisihUkuran !== 0){
+    parts.push(`Ukuran Dikenakan ${escapeHtml(row.ukuranDikenakan||'-')} ≠ Ukuran Seharusnya ${escapeHtml(row.ukuranSeharusnya||'-')} (selisih ${selisihUkuran>0?'+':''}${selisihUkuran.toLocaleString('id-ID')} Ton/M³)`);
+  }
+  return parts;
+}
+// Menyusun blok "Keterangan Perbedaan" otomatis di bawah tabel — hanya muncul bila memang
+// ada baris dengan perbedaan qty colly dan/atau ukuran Ton/M³ antara SI dengan hasil verifikasi.
+function tallyDiffNotesHtml(rows){
+  const notesList = [];
+  rows.forEach((row,i)=>{
+    const diffs = tallyRowDiffText(row);
+    if(diffs.length){
+      notesList.push(`No. ${i+1} (${escapeHtml(row.pengirim||'-')} → ${escapeHtml(row.penerima||'-')}, tujuan ${escapeHtml(row.tujuan||'-')}): ${diffs.join('; ')}.`);
+    }
+  });
+  if(!notesList.length) return '';
+  return `<div class="brk-atom" style="font-size:9px;line-height:1.55;margin:4px 0 10px;border:1px solid #999;padding:6px 8px;background:#FAFAFA;">
+    <div style="font-weight:700;margin-bottom:3px;">Keterangan Perbedaan Shipping Instruction dengan Hasil Verifikasi (otomatis berdasarkan data pada tabel di atas):</div>
+    ${notesList.map(n=>`<div>• ${n}</div>`).join('')}
+  </div>`;
+}
+// jenis: 'muat'/'bongkar'. groupKey: hasil tallyGroupKey (Hari,Tanggal Verifikasi | Voyage).
+// Seluruh Berita Acara dengan jenis, tanggal & voyage yang sama digabung jadi SATU laporan cetak
+// (baris muatannya digabung berurutan, header diambil dari BA pertama yang diinput).
+// Menghitung total ketidaksesuaian & rincian per baris (qty koli & ukuran Ton/M³) secara
+// otomatis dari data tabel, untuk disisipkan langsung ke kalimat kesimpulan "Tidak Sesuai".
+function tallyAutoKetidaksesuaianRinci(rows){
+  let totalTon = 0, totalKoli = 0, totalIsiMismatch = 0;
+  const lines = [];
+  rows.forEach((row,i)=>{
+    const detailParts = [];
+    if(tallyRowIsiMismatch(row)){
+      totalIsiMismatch++;
+      detailParts.push(`isi muatan tidak sesuai (SI "${escapeHtml(row.isiMuatanLap||'-')}" vs Verifikasi "${escapeHtml(row.isiMuatanVer||'-')}")`);
+    }
+    const koliLap = parseFloat(String(row.qtyKoliLap).replace(',','.'));
+    const koliVer = parseFloat(String(row.qtyKoliVer).replace(',','.'));
+    if(!isNaN(koliLap) && !isNaN(koliVer) && koliLap !== koliVer){
+      const d = koliVer - koliLap;
+      totalKoli += Math.abs(d);
+      detailParts.push(`qty koli selisih ${d>0?'+':''}${d.toLocaleString('id-ID')} koli (SI ${koliLap.toLocaleString('id-ID')} vs Verifikasi ${koliVer.toLocaleString('id-ID')})`);
+    }
+    const selisihUkuran = tallyRowSelisih(row);
+    if(selisihUkuran !== null && selisihUkuran !== 0){
+      totalTon += Math.abs(selisihUkuran);
+      detailParts.push(`ukuran selisih ${selisihUkuran>0?'+':''}${selisihUkuran.toLocaleString('id-ID')} Ton/M³ (Dikenakan ${escapeHtml(row.ukuranDikenakan||'-')} vs Seharusnya ${escapeHtml(row.ukuranSeharusnya||'-')})`);
+    }
+    if(detailParts.length){
+      lines.push(`No.${i+1} ${escapeHtml(row.pengirim||'-')} → ${escapeHtml(row.penerima||'-')} (tujuan ${escapeHtml(row.tujuan||'-')}): ${detailParts.join(', ')}`);
+    }
+  });
+  return { totalTon, totalKoli, totalIsiMismatch, lines };
+}
+// SATU-SATUNYA sumber kebenaran untuk status "Kesesuaian" + kalimat kesimpulan Berita Acara.
+// Dipakai baik di formulir Input (live preview), Riwayat (badge), Edit, maupun Cetak PDF —
+// supaya status & angka yang ditampilkan selalu sinkron 1:1 dengan data baris muatan di tabel,
+// tidak lagi bergantung pada isian manual yang bisa lupa diperbarui.
+function tallyComputeKesesuaian(rows){
+  const autoK = tallyAutoKetidaksesuaianRinci(rows||[]);
+  const tidakSesuai = autoK.lines.length > 0;
+  const bagian = [];
+  if(autoK.totalTon>0) bagian.push(`selisih ukuran total ${autoK.totalTon.toLocaleString('id-ID')} Ton/M³`);
+  if(autoK.totalKoli>0) bagian.push(`selisih qty koli total ${autoK.totalKoli.toLocaleString('id-ID')} koli`);
+  if(autoK.totalIsiMismatch>0) bagian.push(`${autoK.totalIsiMismatch} baris isi muatan tidak sesuai SI`);
+  return {
+    kesesuaian: tidakSesuai ? 'tidaksesuai' : 'sesuai',
+    totalTon: autoK.totalTon,
+    totalKoli: autoK.totalKoli,
+    totalIsiMismatch: autoK.totalIsiMismatch,
+    lines: autoK.lines,
+    ringkasanText: tidakSesuai ? bagian.join('; ') : '',
+    // String siap-cetak utk field lama "totalKetidaksesuaian" (kompatibel dgn data lama & PDF).
+    totalTonLabel: autoK.totalTon>0 ? (autoK.totalTon.toLocaleString('id-ID')+' Ton/M³') : ''
+  };
+}
+function buildTallyPrintDiv(jenis, groupKey){
+  const records = TALLY.records.filter(x=>x.jenis===jenis && tallyGroupKey(x)===groupKey)
+    .slice().sort((a,b)=>(a.dibuatPada||'').localeCompare(b.dibuatPada||''));
+  if(!records.length) return null;
+  const r = records[0];
   const cellStyle = 'border:1px solid #111;padding:4px 6px;font-size:9px;line-height:1.35;vertical-align:middle;';
   const headStyle = cellStyle+'background:#F2F2F2;font-weight:700;text-align:center;';
   const sumStyle = cellStyle+'font-weight:700;background:#F2F2F2;text-align:right;';
-  const rows = r.rows||[];
+  const rows = records.reduce((acc, rec)=> acc.concat(rec.rows||[]), []);
   const isNihil = rows.length===0;
   // Saat NIHIL, tabel tetap ditampilkan dengan baris kosong (persis formulir cetak)
   // supaya garis diagonal NIHIL bisa dipatok presisi ke seluruh area isi tabel.
@@ -5769,20 +6200,14 @@ function buildTallyPrintDiv(id){
   const introText = jenis==='muat'
     ? 'Telah dilakukan verifikasi dan tally ulang muatan yang akan naik dengan perbandingan hasil verifikasi sebagai berikut:'
     : 'Telah dilakukan verifikasi dan tally ulang muatan yang telah dibongkar dengan perbandingan hasil verifikasi sebagai berikut:';
-  const kesimpulanText = isNihil
-    ? `Berdasarkan hasil verifikasi tersebut, bongkaran sudah sesuai selanjutnya diberikan kepada Penerima. (Jika Sesuai)
-Berdasarkan hasil verifikasi tersebut terdapat ketidaksesuaian sejumlah total …. Ton/M³. Maka bongkaran yang tidak sesuai tersebut akan ditahan dan ditindaklanjut ditagihkan selisih pembayaran kepada Pengirim/ Penerima yang disesuaikan dengan aturan dan ketentuan Perusahaan. (Jika Tidak Sesuai).
-.`
-    : (r.kesesuaian==='tidaksesuai'
-      ? (jenis==='muat'
-        ? `Berdasarkan hasil verifikasi tersebut terdapat ketidaksesuaian sejumlah total ${escapeHtml(r.totalKetidaksesuaian||'….')} Ton/M³. Dikarenakan sudah <i>closing time</i> untuk <i>booking</i> dan pembayaran di mycargoo, maka akan ditindaklanjut muatan ditahan tidak naik yang disesuaikan dengan aturan dan ketentuan Perusahaan.`
-        : `Berdasarkan hasil verifikasi tersebut terdapat ketidaksesuaian sejumlah total ${escapeHtml(r.totalKetidaksesuaian||'….')} Ton/M³. Maka bongkaran yang tidak sesuai tersebut akan ditahan dan ditindaklanjut ditagihkan selisih pembayaran kepada Pengirim/Penerima yang disesuaikan dengan aturan dan ketentuan Perusahaan.`)
-      : (jenis==='muat'
-        ? `Berdasarkan hasil verifikasi tersebut, muatan sudah sesuai dan diproses naik ke atas Kapal.(Jika Sesuai). 
-Berdasarkan hasil verifikasi tersebut terdapat ketidaksesuaian sejumlah total …. Ton/M³. Dikarenakan sudah closing time untuk booking dan pembayaran di mycargoo, maka akan ditindaklanjut muatan ditahan tidak naik yang disesuaikan dengan aturan dan ketentuan Perusahaan. (Jika Tidak Sesuai)
-
-`
-        : `Berdasarkan hasil verifikasi tersebut, bongkaran sudah sesuai selanjutnya diberikan kepada Penerima.`));
+  // Kesesuaian & kalimat kesimpulan dihitung LANGSUNG dari baris muatan gabungan di atas
+  // (satu-satunya sumber kebenaran, lihat tallyComputeKesesuaian) — bukan dari field
+  // "kesesuaian"/"totalKetidaksesuaian" yang tersimpan per-BA, supaya kalimat yang tercetak
+  // selalu cocok 100% dengan angka SI vs Verifikasi pada tabel, walau data lama pernah diisi manual.
+  const kFinal = tallyComputeKesesuaian(rows);
+  const kesimpulanText = (!isNihil && kFinal.kesesuaian==='tidaksesuai')
+    ? `Berdasarkan hasil verifikasi tersebut terdapat ketidaksesuaian antara Laporan Transaksi/Shipping Instruction dengan Hasil Verifikasi, yaitu ${kFinal.ringkasanText}. Maka muatan yang tidak sesuai tersebut akan ditahan dan ditindaklanjuti ditagihkan selisih pembayaran kepada Pengirim/ Penerima yang disesuaikan dengan aturan dan ketentuan Perusahaan.`
+    : `Berdasarkan hasil verifikasi tersebut, seluruh muatan (isi, qty koli, dan ukuran Ton/M³) sudah sesuai antara Laporan Transaksi/Shipping Instruction dengan Hasil Verifikasi, selanjutnya diberikan kepada Penerima.`;
   const sumCell = (field)=> !isNihil ? tallySumRows(rows,field).toLocaleString('id-ID') : '';
 
   const printDiv = document.createElement('div');
@@ -5860,7 +6285,8 @@ Berdasarkan hasil verifikasi tersebut terdapat ketidaksesuaian sejumlah total �
             <div id="tly-nihil-text" style="position:absolute;top:0;left:0;font-size:30px;font-weight:800;color:#8a8a8a;opacity:0.55;letter-spacing:5px;font-family:'Times New Roman',Times,serif;white-space:nowrap;">NIHIL</div>
           </div>` : ''}
         </div>
-        <div class="brk-atom" style="font-size:9px;font-style:italic;margin:6px 0 12px;">*Note : Pilih salah satu redaksi di bawah ini (sesuai/tidak sesuai)</div>
+        ${!isNihil ? tallyDiffNotesHtml(rows) : ''}
+        ${records.length>1 ? `<div class="brk-atom" style="font-size:9px;font-style:italic;margin:2px 0 8px;color:#555;">*Laporan ini merupakan gabungan dari ${records.length} Berita Acara Tally ${tallyJenisLabel(jenis)} dengan Hari/Tanggal Verifikasi &amp; Voyage yang sama.</div>` : ''}
         <div class="brk-atom" style="font-size:11px;line-height:1.6;margin-bottom:10px;">${kesimpulanText}</div>
         <div class="brk-atom" style="font-size:11px;line-height:1.6;margin-bottom:22px;">Demikian Berita Acara ini dibuat dengan sebenar-benarnya untuk dipergunakan sebagaimana mestinya.</div>
         <div class="brk-atom" style="text-align:center;font-size:11px;margin-bottom:16px;">${tallyPlaceDateLabel(r.hariTanggal)}</div>
@@ -5911,9 +6337,9 @@ Berdasarkan hasil verifikasi tersebut terdapat ketidaksesuaian sejumlah total �
   return printDiv;
 }
 function previewTallyPdf(jenis){
-  const id = TALLY_SELECTED_ID[jenis];
-  if(!id){ toast('Belum ada Berita Acara Tally untuk dicetak.'); return; }
-  const printDiv = buildTallyPrintDiv(id);
+  const groupKey = TALLY_SELECTED_ID[jenis];
+  if(!groupKey){ toast('Belum ada Berita Acara Tally untuk dicetak.'); return; }
+  const printDiv = buildTallyPrintDiv(jenis, groupKey);
   if(!printDiv) return;
   html2canvas(printDiv, {scale:2, backgroundColor:'#ffffff'}).then(canvas=>{
     const imgData = canvas.toDataURL('image/png');
@@ -5940,13 +6366,15 @@ function previewTallyPdf(jenis){
 }
 function confirmDownloadTallyPdf(jenis){
   closeModal();
-  const id = TALLY_SELECTED_ID[jenis];
-  const printDiv = buildTallyPrintDiv(id);
+  const groupKey = TALLY_SELECTED_ID[jenis];
+  const printDiv = buildTallyPrintDiv(jenis, groupKey);
   if(!printDiv) return;
-  html2canvas(printDiv, {scale:2, backgroundColor:'#ffffff'}).then(canvas=>{
+  html2canvas(printDiv, {scale:2, backgroundColor:'#ffffff'}).then(async canvas=>{
     const pdf = buildPagedA4Pdf(canvas, printDiv, 'p');
     document.body.removeChild(printDiv);
-    pdf.save('Berita_Acara_Tally_'+tallyJenisLabel(jenis)+'_'+id+'.pdf');
+    const fileSafeKey = String(groupKey).replace(/[^a-zA-Z0-9]+/g,'_');
+    await finalizePdfSecurity(pdf, 'p', 'Berita Acara Tally '+tallyJenisLabel(jenis)+' '+groupKey);
+    pdf.save('Berita_Acara_Tally_'+tallyJenisLabel(jenis)+'_'+fileSafeKey+'.pdf');
     toast('File PDF diunduh ('+pdf.internal.getNumberOfPages()+' halaman).');
   }).catch(err=>{
     document.body.removeChild(printDiv);
@@ -6558,9 +6986,10 @@ function previewPdfKK(){
 function confirmDownloadPdfKK(bulan){
   closeModal();
   const printDiv = buildPdfPrintDivKK(bulan);
-  html2canvas(printDiv, {scale:2, backgroundColor:'#ffffff'}).then(canvas=>{
+  html2canvas(printDiv, {scale:2, backgroundColor:'#ffffff'}).then(async canvas=>{
     const pdf = buildPagedA4Pdf(canvas, printDiv);
     document.body.removeChild(printDiv);
+    await finalizePdfSecurity(pdf, 'p', 'Laporan Kas Keagenan '+bulan);
     pdf.save('Laporan_Kas_Keagenan_'+bulan+'.pdf');
     toast('File PDF diunduh ('+pdf.internal.getNumberOfPages()+' halaman).');
   }).catch(err=>{
