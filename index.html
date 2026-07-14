@@ -7577,6 +7577,19 @@ function dkJenisLabel(j){
   const map = { 'LK3-NAKHODA':'LK3 Nakhoda', 'LKK-AGEN':'LKK Agen', 'CREWLIST':'Crewlist', 'SPB':'SPB' };
   return map[j] || j;
 }
+/**
+ * Validasi daftar email dipisah koma/titik-koma. Mengembalikan { valid, cleaned } --
+ * cleaned adalah string yang sudah dirapikan (dipisah ", ") untuk dikirim ke backend,
+ * atau null kalau input kosong. valid=false kalau ada salah satu alamat yang formatnya salah.
+ */
+function dkParseDaftarEmail(raw){
+  const teks = (raw || '').trim();
+  if(!teks) return { valid: true, cleaned: null };
+  const bagian = teks.split(/[,;]+/).map(s=>s.trim()).filter(Boolean);
+  const rx = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const semuaValid = bagian.every(b=>rx.test(b));
+  return { valid: semuaValid, cleaned: semuaValid ? bagian.join(', ') : null };
+}
 
 /* ===== Tampilan 1: Ambil dari Inaportnet (trigger scraping via backend) ===== */
 function renderDokumenKapalScan(c, actions){
@@ -7584,18 +7597,25 @@ function renderDokumenKapalScan(c, actions){
     <div class="card">
       <p class="card-title">🔁 Pantau otomatis</p>
       <p style="font-size:12.5px;color:var(--ink-soft);margin:-6px 0 14px;">
-        Tempel link halaman <b>Pengajuan PKK</b> dari Inaportnet, lalu klik "Pantau Otomatis" — <b>cukup sekali</b>.
-        Setelah itu sistem akan mengecek link ini sendiri setiap beberapa menit di latar belakang, mengambil dokumen kalau ada yang baru/berubah,
-        dan mengirim email otomatis kalau Anda isi alamat emailnya. Anda tidak perlu klik apa pun lagi setelahnya.
+        Sistem sudah otomatis mencari pengajuan baru sendiri dari Inaportnet setiap beberapa menit — biasanya Anda <b>tidak perlu</b> menempel link di bawah ini lagi.
+        Form ini hanya untuk kasus khusus: menambah link pengajuan tertentu secara manual (mis. mau langsung dipantau tanpa menunggu jadwal berikutnya).
       </p>
       <div class="form-grid">
         <div class="form-field full">
-          <label>Link Pengajuan PKK (Inaportnet)</label>
-          <input type="text" id="dk-url" placeholder="https://inaportnet.dephub.go.id/ap/warta-kapal/view/...">
+          <label>Link Pengajuan PKK (Inaportnet) — opsional, kosongkan kalau tidak perlu</label>
+          <div style="display:flex;gap:8px;">
+            <input type="text" id="dk-url" placeholder="https://inaportnet.dephub.go.id/ap/warta-kapal/view/..." style="flex:1;">
+            <button type="button" class="btn btn-ghost btn-sm" style="white-space:nowrap;" onclick="window.open('https://inaportnet.dephub.go.id/dashboard','_blank')">↗ Buka Inaportnet</button>
+          </div>
+          <p style="font-size:11px;color:var(--ink-soft);margin:4px 0 0;">Tombol di atas membuka dashboard Inaportnet di tab baru — salin link halaman "Pengajuan PKK" (bukan link dashboard-nya sendiri) lalu tempel di sini.</p>
         </div>
         <div class="form-field full">
-          <label>Kirim otomatis ke email ini setiap ada dokumen baru/berubah (opsional)</label>
-          <input type="text" id="dk-auto-email" placeholder="cth. operasional@pelni.co.id — kosongkan kalau mau kirim manual saja">
+          <label>Kirim otomatis ke (Kepada) — opsional, boleh lebih dari satu dipisah koma</label>
+          <input type="text" id="dk-auto-email" placeholder="cth. operasional@pelni.co.id, kapten@pelni.co.id">
+        </div>
+        <div class="form-field full">
+          <label>CC (opsional) — boleh lebih dari satu dipisah koma</label>
+          <input type="text" id="dk-auto-email-cc" placeholder="cth. manajer@pelni.co.id">
         </div>
       </div>
       <div style="margin-top:14px;display:flex;gap:10px;align-items:center;">
@@ -7649,11 +7669,12 @@ async function dkRefreshWatchlist(){
     }
     box.innerHTML = `
       <table class="ledger">
-        <thead><tr><th>Link</th><th>Kirim otomatis ke</th><th>Terakhir dicek</th><th>Hasil terakhir</th><th></th></tr></thead>
+        <thead><tr><th>Link</th><th>Kepada</th><th>CC</th><th>Terakhir dicek</th><th>Hasil terakhir</th><th></th></tr></thead>
         <tbody>
           ${list.map(w=>`<tr ${!w.active?'style="opacity:.5;"':''}>
-            <td class="name-cell" style="max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(w.url)}">${escapeHtml(w.label || w.url)}</td>
-            <td style="font-size:12px;">${escapeHtml(w.auto_email_to || '-')}</td>
+            <td class="name-cell" style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(w.url)}">${escapeHtml(w.label || w.url)}</td>
+            <td style="font-size:12px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(w.auto_email_to || '')}">${escapeHtml(w.auto_email_to || '-')}</td>
+            <td style="font-size:12px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(w.auto_email_cc || '')}">${escapeHtml(w.auto_email_cc || '-')}</td>
             <td style="font-size:11.5px;white-space:nowrap;">${dkFmtWaktu(w.last_checked_at)}</td>
             <td style="font-size:11.5px;">${escapeHtml(w.last_result || '-')}</td>
             <td style="white-space:nowrap;">
@@ -7673,23 +7694,28 @@ async function dkRefreshWatchlist(){
 async function dkTambahWatchlist(){
   const urlInput = document.getElementById('dk-url');
   const emailInput = document.getElementById('dk-auto-email');
+  const emailCcInput = document.getElementById('dk-auto-email-cc');
   const url = urlInput.value.trim();
-  const autoEmailTo = emailInput.value.trim();
   const statusEl = document.getElementById('dk-scan-status');
   const btn = document.getElementById('dk-scan-btn');
   if(!url){ toast('Tempel link Pengajuan PKK dari Inaportnet terlebih dahulu.'); return; }
-  if(autoEmailTo && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(autoEmailTo)){ toast('Format email otomatis tidak valid.'); return; }
+
+  const kepada = dkParseDaftarEmail(emailInput.value);
+  if(!kepada.valid){ toast('Ada format email "Kepada" yang tidak valid. Pisahkan beberapa alamat dengan koma.'); return; }
+  const cc = dkParseDaftarEmail(emailCcInput.value);
+  if(!cc.valid){ toast('Ada format email "CC" yang tidak valid. Pisahkan beberapa alamat dengan koma.'); return; }
+
   btn.disabled = true;
   statusEl.textContent = 'Menambahkan & mengambil dokumen pertama kali… (bisa 10–30 detik)';
   try{
     const json = await dkFetch('/watchlist', {
       method: 'POST',
       headers: { 'Content-Type':'application/json' },
-      body: JSON.stringify({ url, autoEmailTo: autoEmailTo || null, createdBy: CURRENT_USER.name })
+      body: JSON.stringify({ url, autoEmailTo: kepada.cleaned, autoEmailCc: cc.cleaned, createdBy: CURRENT_USER.name })
     });
     statusEl.textContent = '';
     toast('Link ditambahkan ke pantauan otomatis. Dokumen pertama sedang diambil di latar belakang — muncul otomatis di "Folder per Kapal" sesaat lagi.');
-    urlInput.value = ''; emailInput.value = '';
+    urlInput.value = ''; emailInput.value = ''; emailCcInput.value = '';
     setTimeout(dkRefreshWatchlist, 1500);
     setTimeout(dkRefreshWatchlist, 8000); // refresh lagi setelah pengambilan pertama biasanya selesai
   }catch(e){
@@ -7879,10 +7905,13 @@ function renderDokumenKapalRiwayat(c, actions){
             <p class="card-title" style="margin:0;">🚢 ${escapeHtml(g.namaKapal)} <span style="font-weight:400;color:var(--ink-soft);font-size:12.5px;">— ${fmtDate(g.tanggalTerbit)}</span></p>
             <p style="font-size:11.5px;color:var(--ink-soft);margin:4px 0 0;font-family:var(--font-mono);">No. PKK: ${escapeHtml(g.nomorPkk||'-')}</p>
           </div>
-          ${semuaTerkirim
-            ? `<span style="background:rgba(63,122,77,0.12);color:var(--green-dark);font-size:11.5px;font-weight:700;padding:4px 10px;border-radius:12px;">✓ Semua sudah dikirim</span>`
-            : `<button class="btn btn-gold btn-sm" onclick="dkKirimEmailGrup('${dkGroupKey(g.items[0]).replace(/'/g,"\\'")}')">📧 Kirim semua ke email</button>`
-          }
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            ${semuaTerkirim
+              ? `<span style="background:rgba(63,122,77,0.12);color:var(--green-dark);font-size:11.5px;font-weight:700;padding:4px 10px;border-radius:12px;align-self:center;">✓ Semua sudah dikirim</span>`
+              : `<button class="btn btn-gold btn-sm" onclick="dkKirimEmailGrup('${dkGroupKey(g.items[0]).replace(/'/g,"\\'")}')">📧 Kirim semua ke email</button>`
+            }
+            <button class="btn btn-ghost btn-sm" style="color:#25D366;border-color:#25D366;" onclick="dkKirimWaGrup('${dkGroupKey(g.items[0]).replace(/'/g,"\\'")}')">💬 Kirim via WhatsApp</button>
+          </div>
         </div>
         <table class="ledger">
           <thead><tr><th>Jenis Dokumen</th><th>Status</th><th>Dikirim ke</th><th></th></tr></thead>
@@ -7912,8 +7941,12 @@ function dkKirimEmailGrup(groupKey){
           ${items.length} dokumen untuk kapal <b>${escapeHtml(items[0].namaKapal)}</b> (${fmtDate(items[0].tanggalTerbit)}) akan dikirim sebagai lampiran dalam satu email.
         </p>
         <div class="form-field full">
-          <label>Alamat email tujuan</label>
-          <input type="text" id="dk-email-tujuan" placeholder="cth. operasional@pelni.co.id">
+          <label>Kepada — boleh lebih dari satu, dipisah koma</label>
+          <input type="text" id="dk-email-tujuan" placeholder="cth. operasional@pelni.co.id, kapten@pelni.co.id">
+        </div>
+        <div class="form-field full" style="margin-top:8px;">
+          <label>CC (opsional) — boleh lebih dari satu, dipisah koma</label>
+          <input type="text" id="dk-email-cc" placeholder="cth. manajer@pelni.co.id">
         </div>
         <div class="modal-actions">
           <button class="btn btn-ghost" onclick="closeModal()">Batal</button>
@@ -7925,10 +7958,12 @@ function dkKirimEmailGrup(groupKey){
 }
 async function dkConfirmKirimEmail(groupKey){
   const items = DK_LIVE_DOCS.filter(r=>dkGroupKey(r)===groupKey);
-  const email = document.getElementById('dk-email-tujuan').value.trim();
+  const kepada = dkParseDaftarEmail(document.getElementById('dk-email-tujuan').value);
+  const cc = dkParseDaftarEmail(document.getElementById('dk-email-cc').value);
   const btn = document.getElementById('dk-email-send-btn');
-  if(!email){ toast('Alamat email tujuan wajib diisi.'); return; }
-  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){ toast('Format alamat email tidak valid.'); return; }
+  if(!kepada.cleaned){ toast('Alamat email tujuan (Kepada) wajib diisi.'); return; }
+  if(!kepada.valid){ toast('Ada format email "Kepada" yang tidak valid. Pisahkan beberapa alamat dengan koma.'); return; }
+  if(!cc.valid){ toast('Ada format email "CC" yang tidak valid. Pisahkan beberapa alamat dengan koma.'); return; }
   const dokumenIds = items.map(r=>r.id).filter(Boolean);
   if(dokumenIds.length !== items.length){
     toast('Sebagian dokumen belum memiliki data lengkap dari backend. Coba cek ulang dari menu "Pantau Otomatis" (tombol "Cek sekarang").');
@@ -7939,15 +7974,165 @@ async function dkConfirmKirimEmail(groupKey){
     await dkFetch('/kirim-email', {
       method: 'POST',
       headers: { 'Content-Type':'application/json' },
-      body: JSON.stringify({ dokumenIds, emailTujuan: email })
+      body: JSON.stringify({ dokumenIds, emailTujuan: kepada.cleaned, emailCc: cc.cleaned })
     });
-    items.forEach(r=>{ r.statusKirimEmail = true; r.dikirimKe = email; });
+    items.forEach(r=>{ r.statusKirimEmail = true; r.dikirimKe = kepada.cleaned; });
     closeModal();
-    toast('Dokumen berhasil dikirim ke '+email+'.');
+    toast('Dokumen berhasil dikirim ke '+kepada.cleaned+(cc.cleaned ? ' (CC: '+cc.cleaned+')' : '')+'.');
     render();
   }catch(e){
     toast(e.message);
     btn.disabled = false; btn.textContent = 'Kirim sekarang';
+  }
+}
+
+/**
+ * ===== Kirim dokumen via WhatsApp =====
+ * - Di Android/iOS: kalau browser mendukung Web Share API dengan file (navigator.share/canShare),
+ *   file PDF-nya diambil dulu di belakang layar lalu langsung disodorkan ke menu "Bagikan" HP —
+ *   dari situ pengguna tinggal pilih WhatsApp dan kontak tujuan, file terkirim ASLI (bukan cuma link).
+ * - Di PC/desktop: browser TIDAK PERNAH bisa otomatis melampirkan file ke kolom chat WhatsApp Web —
+ *   ini batasan keamanan browser, bukan batasan aplikasi ini (JavaScript dilarang mengisi file
+ *   ke input attach WhatsApp Web demi keamanan, sama seperti tidak bisa auto-attach di Gmail).
+ *   Makanya di PC, file PDF-nya diunduh ASLI ke folder Download otomatis (bukan cuma link dikirim),
+ *   lalu WhatsApp Web dibuka/difokuskan di TAB YANG SUDAH ADA (pakai nama tab yang sama, jadi kalau
+ *   sudah ada tab WhatsApp Web terbuka, browser akan pindah ke situ, bukan bikin tab baru) —
+ *   dari situ pengguna tinggal pilih sendiri kontak tujuan dari daftar chat, klik 📎, lalu pilih
+ *   file PDF yang baru saja terunduh. Nomor tujuan sifatnya OPSIONAL: kalau diisi, WA Web akan
+ *   langsung diarahkan ke chat nomor itu (masih di tab yang sama); kalau dikosongkan, WA Web
+ *   dibuka apa adanya supaya kontak dipilih manual dari daftar chat yang ada.
+ */
+const DK_WA_TAB_NAME = 'dk_whatsapp_web_tab';
+function dkIsMobileDevice(){
+  if(navigator.userAgentData && typeof navigator.userAgentData.mobile === 'boolean') return navigator.userAgentData.mobile;
+  return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+}
+/** Bersihkan nomor WA: buang spasi/simbol, ubah awalan 0 jadi 62 (asumsi nomor Indonesia). */
+function dkBersihkanNomorWa(raw){
+  let n = (raw||'').replace(/[^\d]/g,'');
+  if(n.startsWith('0')) n = '62'+n.slice(1);
+  return n;
+}
+/** Unduh 1 file PDF asli ke komputer pengguna (bukan cuma link). */
+async function dkUnduhFileAsli(url, namaFile){
+  const res = await fetch(url);
+  if(!res.ok) throw new Error('gagal unduh: '+namaFile);
+  const blob = await res.blob();
+  const objUrl = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = objUrl; a.download = namaFile;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(objUrl), 15000);
+}
+function dkKirimWaGrup(groupKey){
+  const items = DK_LIVE_DOCS.filter(r=>dkGroupKey(r)===groupKey);
+  if(!items.length) return;
+  const nomorTersimpan = localStorage.getItem('dk_wa_nomor_terakhir') || '';
+  const mobile = dkIsMobileDevice();
+  document.getElementById('modal-root').innerHTML = `
+    <div class="modal-overlay">
+      <div class="modal-box" style="max-width:440px;">
+        <h3>💬 Kirim dokumen via WhatsApp</h3>
+        <p style="font-size:13px;color:var(--ink-soft);margin:0 0 14px;">
+          ${items.length} dokumen untuk kapal <b>${escapeHtml(items[0].namaKapal)}</b> (${fmtDate(items[0].tanggalTerbit)}).
+        </p>
+        <div class="form-field full">
+          <label>Nomor WhatsApp tujuan ${mobile ? '' : '<span style="font-weight:400;color:var(--ink-soft);">(opsional — kosongkan kalau mau pilih kontak sendiri dari WhatsApp Web)</span>'}</label>
+          <input type="text" id="dk-wa-nomor" placeholder="cth. 08123456789" value="${escapeHtml(nomorTersimpan)}">
+        </div>
+        <p style="font-size:11.5px;color:var(--ink-soft);margin:10px 0 0;background:var(--paper-soft,#f6f3ee);padding:8px 10px;border-radius:8px;">
+          ${mobile
+            ? 'Perangkat terdeteksi: <b>HP</b>. File PDF akan disiapkan lalu langsung disodorkan ke menu "Bagikan" — pilih WhatsApp dan kirim ke kontak tujuan.'
+            : 'Perangkat terdeteksi: <b>Komputer</b>. File PDF akan diunduh asli ke folder Download, lalu WhatsApp Web dibuka di tab yang sama (kalau sudah ada tab WA Web terbuka, tidak akan buka tab baru lagi) — lampirkan filenya sendiri lewat 📎.'}
+        </p>
+        <div class="modal-actions">
+          <button class="btn btn-ghost" onclick="closeModal()">Batal</button>
+          <button class="btn btn-gold" id="dk-wa-send-btn" onclick="dkConfirmKirimWa('${groupKey.replace(/'/g,"\\'")}')">Kirim sekarang</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+async function dkConfirmKirimWa(groupKey){
+  const items = DK_LIVE_DOCS.filter(r=>dkGroupKey(r)===groupKey);
+  const nomorInput = document.getElementById('dk-wa-nomor');
+  const nomorRaw = (nomorInput.value||'').trim();
+  const btn = document.getElementById('dk-wa-send-btn');
+  const mobile = dkIsMobileDevice();
+
+  // Nomor wajib diisi kalau di HP (dipakai target Web Share); di PC nomor boleh kosong.
+  if(mobile && !nomorRaw){ toast('Nomor WhatsApp tujuan wajib diisi.'); return; }
+  let nomor = '';
+  if(nomorRaw){
+    nomor = dkBersihkanNomorWa(nomorRaw);
+    if(!/^\d{8,15}$/.test(nomor)){ toast('Format nomor WhatsApp tidak valid. Contoh: 08123456789'); return; }
+    localStorage.setItem('dk_wa_nomor_terakhir', nomorRaw);
+  }
+
+  const teks = `Dokumen keberangkatan kapal ${items[0].namaKapal} (${fmtDate(items[0].tanggalTerbit)}):\n`
+    + items.map(r=>`- ${dkJenisLabel(r.jenisDokumen)}: ${r.urlFile || '(file belum tersedia)'}`).join('\n');
+
+  btn.disabled = true; btn.textContent = 'Menyiapkan…';
+
+  // ----- HP: bagikan file PDF ASLI lewat Web Share API -----
+  if(mobile && navigator.share && navigator.canShare){
+    try{
+      const files = [];
+      for(const r of items){
+        if(!r.urlFile) continue;
+        const res = await fetch(r.urlFile);
+        if(!res.ok) throw new Error('gagal ambil file');
+        const blob = await res.blob();
+        const ext = ((r.urlFile.split('?')[0].split('.').pop())||'pdf').slice(0,5);
+        const namaFile = (dkJenisLabel(r.jenisDokumen)+'-'+items[0].namaKapal+'.'+ext).replace(/[^\w.\-]+/g,'_');
+        files.push(new File([blob], namaFile, { type: blob.type || 'application/pdf' }));
+      }
+      if(files.length && navigator.canShare({ files })){
+        await navigator.share({ files, text: teks, title: 'Dokumen Kapal '+items[0].namaKapal });
+        closeModal();
+        toast('Menu berbagi dibuka — pilih WhatsApp lalu kirim ke '+nomorRaw+'.');
+        return;
+      }
+    }catch(e){
+      if(e && e.name === 'AbortError'){
+        btn.disabled = false; btn.textContent = 'Kirim sekarang';
+        return;
+      }
+      // File gagal diambil / share ditolak -> lanjut ke fallback link di bawah.
+    }
+    // Web Share tanpa dukungan file -> fallback: buka app WhatsApp dengan pesan berisi link.
+    const urlFallbackHp = 'https://api.whatsapp.com/send?phone='+encodeURIComponent(nomor)+'&text='+encodeURIComponent(teks);
+    window.open(urlFallbackHp, '_blank');
+    closeModal();
+    toast('HP ini tidak mendukung kirim file langsung, jadi dibuka pesan berisi link dokumen ke '+nomorRaw+'.');
+    return;
+  }
+
+  // ----- PC: unduh file PDF asli dulu, baru buka/fokuskan WhatsApp Web di tab yang sama -----
+  let berhasilUnduh = 0;
+  for(const r of items){
+    if(!r.urlFile) continue;
+    const ext = ((r.urlFile.split('?')[0].split('.').pop())||'pdf').slice(0,5);
+    const namaFile = (dkJenisLabel(r.jenisDokumen)+'-'+items[0].namaKapal+'.'+ext).replace(/[^\w.\-]+/g,'_');
+    try{
+      await dkUnduhFileAsli(r.urlFile, namaFile);
+      berhasilUnduh++;
+      await new Promise(res=>setTimeout(res, 400)); // jeda kecil supaya browser tidak memblokir unduhan beruntun
+    }catch(e){ /* lanjut ke file berikutnya walau satu gagal */ }
+  }
+
+  try{ await navigator.clipboard.writeText(teks); }catch(e){ /* clipboard tidak tersedia, tidak fatal */ }
+
+  const urlWa = nomor
+    ? 'https://web.whatsapp.com/send?phone='+encodeURIComponent(nomor)
+    : 'https://web.whatsapp.com/';
+  window.open(urlWa, DK_WA_TAB_NAME); // nama tab tetap sama -> tab WA Web yang sudah terbuka dipakai lagi, bukan tab baru
+
+  closeModal();
+  if(berhasilUnduh>0){
+    toast(berhasilUnduh+' file PDF sudah diunduh ke folder Download. WhatsApp Web dibuka'+(nomor?' ke nomor '+nomorRaw:'')+' — pilih kontak, klik 📎 lalu pilih file yang baru diunduh (caption sudah disalin, tinggal tempel).');
+  }else{
+    toast('WhatsApp Web dibuka'+(nomor?' ke nomor '+nomorRaw:'')+', tapi file PDF gagal diunduh otomatis — buka link dokumennya manual lalu unduh dari sana.');
   }
 }
 
