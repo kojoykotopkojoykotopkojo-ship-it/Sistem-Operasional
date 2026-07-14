@@ -170,6 +170,60 @@ input,select,textarea{font-family:var(--font-body);}
 .login-error{color:#F0A19A;font-size:12.5px;margin-top:10px;min-height:16px;}
 .login-hint{margin-top:22px;padding-top:16px;border-top:1px solid var(--navy-700);font-size:11.5px;color:#748899;line-height:1.6;}
 
+/* ===== SLIP GAJI PUBLIK (halaman hasil scan QR, tanpa login) ===== */
+#public-slip-screen{
+  min-height:100vh;
+  display:flex;
+  align-items:flex-start;
+  justify-content:center;
+  padding:28px 16px 60px;
+  background:
+    radial-gradient(circle at 15% 20%, rgba(184,146,47,0.08), transparent 40%),
+    radial-gradient(circle at 85% 80%, rgba(27,127,121,0.10), transparent 45%),
+    var(--navy-950);
+  font-family:var(--font-body);
+  color:var(--paper);
+}
+.pub-slip-card{
+  width:100%;max-width:560px;
+  background:var(--navy-900);
+  border:1px solid rgba(184,146,47,0.3);
+  border-radius:6px;
+  padding:28px 26px;
+  position:relative;
+}
+.pub-slip-card h2{font-family:var(--font-display);font-weight:600;font-size:20px;margin:0 0 4px;color:var(--paper);}
+.pub-slip-card p{color:#9FB0C2;font-size:13.5px;line-height:1.6;}
+.pub-slip-eyebrow{font-family:var(--font-mono);font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--brass);margin:0 0 8px;}
+.pub-slip-status{
+  display:flex;align-items:center;gap:10px;
+  padding:12px 14px;border-radius:4px;margin:16px 0 4px;
+  font-size:13px;font-weight:600;
+}
+.pub-slip-status.ok{background:rgba(63,122,77,0.16);border:1px solid rgba(63,122,77,0.45);color:#8FD19E;}
+.pub-slip-status.already{background:rgba(184,146,47,0.14);border:1px solid rgba(184,146,47,0.4);color:var(--brass);}
+.pub-slip-table{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:16px;}
+.pub-slip-table th,.pub-slip-table td{border:1px solid var(--navy-700);padding:7px 9px;text-align:left;color:var(--paper);}
+.pub-slip-table th{background:var(--navy-850);font-weight:600;color:#B9C6D3;}
+.pub-slip-table td.num,.pub-slip-table th.num{text-align:right;}
+.pub-slip-table tfoot td{font-weight:700;background:var(--navy-850);}
+.pub-slip-footer{margin-top:20px;padding-top:14px;border-top:1px solid var(--navy-700);font-size:11.5px;color:#748899;line-height:1.6;}
+.pub-slip-card.pub-slip-blocked{
+  text-align:center;
+  border-color:rgba(178,58,46,0.5);
+  background:linear-gradient(180deg, rgba(178,58,46,0.10), var(--navy-900) 55%);
+}
+.pub-slip-stop-icon{font-size:52px;line-height:1;margin-bottom:6px;}
+.pub-slip-stop-title{
+  font-family:var(--font-display);font-weight:700;font-size:34px;letter-spacing:2px;
+  color:var(--rust);margin:0 0 14px;
+}
+.pub-slip-blocked-text{color:var(--paper);font-size:16px;line-height:1.7;font-weight:600;margin:0 0 10px;}
+.pub-slip-blocked-sub{color:var(--brass);font-size:14px;font-weight:600;margin:0;}
+body.public-slip-mode #voice-widget,
+body.public-slip-mode #admin-ai-fab,
+body.public-slip-mode #admin-ai-panel{display:none !important;}
+
 /* ===== APP SHELL ===== */
 #app-shell{display:flex;min-height:100vh;}
 #sidebar{
@@ -560,6 +614,9 @@ table.ledger tr:hover td{background:#FBFAF5;}
     </div>
   </div>
 
+  <!-- SLIP GAJI PUBLIK (dibuka via scan QR di amplop, tanpa perlu login) -->
+  <div id="public-slip-screen" class="hidden"></div>
+
   <!-- APP -->
   <div id="app-shell" class="hidden">
     <div id="sidebar-backdrop" onclick="closeSidebarDrawer()"></div>
@@ -586,6 +643,8 @@ table.ledger tr:hover td{background:#FBFAF5;}
           <div class="nav-item" data-view="pnbp" onclick="goto('pnbp')"><span class="nav-dot"></span>Catatan Biaya PNBP Kapal
             <span id="pnbp-nav-badge" class="hidden" style="margin-left:auto;background:var(--rust);color:#fff;font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;"></span>
           </div>
+          <div class="nav-item" data-view="tali-input" onclick="goto('tali-input')"><span class="nav-dot"></span>Ceklis Pasang Lepas Tali</div>
+          <div class="nav-item" data-view="tali-rekap" onclick="goto('tali-rekap')"><span class="nav-dot"></span>Rekap Pasang Lepas Tali</div>
         </div>
       </div>
       <div class="nav-group nav-module-block" data-module="kunjungan" style="margin-top:18px;padding-top:14px;border-top:1px solid var(--navy-700);">
@@ -786,7 +845,7 @@ let CURRENT_VIEW = 'dashboard';
 let CURRENT_MODULE = 'kas';
 let SIDEBAR_EXPANDED = 'kas'; // modul mana yang submenu-nya sedang terbuka di sidebar
 const MODULE_VIEWS = {
-  kas: ['dashboard','input','riwayat','laporan','pnbp'],
+  kas: ['dashboard','input','riwayat','laporan','pnbp','tali-input','tali-rekap'],
   kunjungan: ['kunj-input','kunj-riwayat','kunj-laporan'],
   paspel: ['paspel-input','paspel-riwayat','paspel-laporan'],
   missKeagenan: ['mk-input','mk-riwayat','mk-laporan'],
@@ -827,7 +886,7 @@ function applyAccessVisibility(){
       // Menu Dashboard/Input/Riwayat/Laporan tetap DITAMPILKAN (tidak disembunyikan) walau
       // user hanya punya akses PNBP — hanya ditandai terkunci (redup) & tidak bisa dibuka.
       // Ini supaya struktur menu "Buku Kas Operasional" tetap utuh terlihat oleh akun Giro/Kasir.
-      ['dashboard','input','riwayat','laporan'].forEach(v=>{
+      ['dashboard','input','riwayat','laporan','tali-input','tali-rekap'].forEach(v=>{
         const el = block.querySelector('.nav-item[data-view="'+v+'"]');
         if(el){
           el.style.display = '';
@@ -1006,6 +1065,7 @@ const ND_REMINDER_DAYS = 3;
 let PNBP = { records: [] };
 let PNBP_REMINDER_LAST_SHOWN = null;
 const PNBP_REMINDER_DAYS = 3;
+let TALI_SELECTED_BULAN = currentMonthKey();
 function blankTallyRow(){
   return { pengirim:'', penerima:'', tujuan:'', isiMuatanLap:'', qtyKoliLap:'', ukuranDikenakan:'', isiMuatanVer:'', qtyKoliVer:'', ukuranTon:'', ukuranM3:'', ukuranSeharusnya:'' };
 }
@@ -1095,29 +1155,87 @@ async function logAudit(clientNote, extra){
   }
 }
 
+// Gabungkan versi SERVER (yang sudah berisi perubahan dari akun lain) dengan versi LOKAL
+// (yang sedang mau disimpan pengguna ini), supaya kalau ternyata ada perubahan bentrok, tidak
+// ada satu pun catatan yang hilang diam-diam -- tanpa perlu me-reload apa pun.
+// - Untuk daftar (array) seperti records/transactions: digabung berdasarkan id -- catatan baru
+//   dari SIAPA SAJA (server maupun lokal) tetap ada; kalau id yang sama diubah di dua tempat,
+//   versi lokal yang menang (karena itulah yang sedang aktif disimpan pengguna ini sekarang).
+// - Untuk objek biasa (mis. pengaturan/pejabat): field lokal menimpa field server per-field,
+//   jadi perubahan kecil dari server (mis. field lain yang diedit orang lain) tetap terbawa.
+function mergeModuleForRetry(serverValue, localValue){
+  if(!serverValue || typeof serverValue !== 'object') return localValue;
+  if(!localValue || typeof localValue !== 'object') return serverValue;
+  const merged = JSON.parse(JSON.stringify(serverValue));
+  Object.keys(localValue).forEach(key=>{
+    if(key.startsWith('_')) return; // lewati field internal seperti _serverUpdatedAt
+    const localVal = localValue[key];
+    const serverVal = merged[key];
+    if(Array.isArray(localVal) && Array.isArray(serverVal)){
+      const idKeyCandidates = ['id','uid','recordId'];
+      const sample = localVal.find(it=>it && typeof it==='object') || serverVal.find(it=>it && typeof it==='object');
+      const idKey = sample ? idKeyCandidates.find(k=>Object.prototype.hasOwnProperty.call(sample,k)) : null;
+      if(idKey){
+        const byId = new Map();
+        serverVal.forEach(item=>{ if(item && item[idKey]!=null) byId.set(item[idKey], item); });
+        localVal.forEach(item=>{ if(item && item[idKey]!=null) byId.set(item[idKey], item); });
+        merged[key] = Array.from(byId.values());
+      }else{
+        merged[key] = localVal;
+      }
+    }else if(localVal && typeof localVal==='object' && !Array.isArray(localVal) && serverVal && typeof serverVal==='object' && !Array.isArray(serverVal)){
+      merged[key] = Object.assign({}, serverVal, localVal);
+    }else{
+      merged[key] = localVal;
+    }
+  });
+  return merged;
+}
+
 // Bungkus upsert supaya SETIAP penyimpanan data juga tercatat manusiawi di audit_log,
 // dan mendeteksi kalau data di server berubah sejak terakhir kali kita muat (indikasi
 // dua orang menyimpan bersamaan -- mencegah salah satu perubahan hilang diam-diam).
-async function auditedUpsert(storageKey, valueObj, actionLabel, localStateHolder){
+// PENTING (versi sebelumnya): kalau terdeteksi bentrok, HALAMAN LANGSUNG DI-RELOAD PENUH --
+// terlihat jelas oleh pengguna dan memutus apa pun yang sedang dikerjakan. Sekarang:
+// data terbaru diambil & digabung diam-diam di latar belakang, lalu penyimpanan dicoba lagi
+// secara otomatis (maksimal beberapa kali) -- SAMA SEKALI TANPA reload dan tanpa mengganggu.
+async function auditedUpsert(storageKey, valueObj, actionLabel, localStateHolder, _attempt){
+  _attempt = _attempt || 1;
   if(!sbClient){
     toast('Supabase belum dikonfigurasi. Isi SUPABASE_URL & SUPABASE_ANON_KEY di kode.');
     return false;
   }
   try{
     if(localStateHolder && localStateHolder._serverUpdatedAt){
-      const { data: current } = await sbClient.from('app_storage').select('updated_at').eq('storage_key', storageKey).maybeSingle();
+      const { data: current } = await sbClient.from('app_storage').select('value, updated_at').eq('storage_key', storageKey).maybeSingle();
       if(current && current.updated_at && current.updated_at !== localStateHolder._serverUpdatedAt){
-        toast('Data ini baru saja diubah oleh pengguna lain. Halaman akan dimuat ulang supaya tidak ada perubahan yang tertimpa.');
-        await logAudit('Konflik simpan terdeteksi pada '+storageKey, {storageKey, op:'CONFLICT_DETECTED'});
-        setTimeout(()=>location.reload(), 1800);
+        const merged = mergeModuleForRetry(current.value, valueObj);
+        Object.keys(merged).forEach(k=>{ localStateHolder[k] = merged[k]; });
+        localStateHolder._serverUpdatedAt = current.updated_at;
+        logAudit('Konflik simpan terdeteksi pada '+storageKey+' -- disinkronkan & disimpan ulang otomatis di latar belakang (percobaan '+_attempt+')', {storageKey, op:'CONFLICT_AUTO_RESYNC'});
+        if(REALTIME_SAFE_AUTO_VIEWS.has(CURRENT_VIEW)) render();
+        if(_attempt < 4){
+          return auditedUpsert(storageKey, localStateHolder, actionLabel, localStateHolder, _attempt+1);
+        }
+        // Sangat jarang terjadi (data terus-menerus berubah beberapa kali beruntun dalam
+        // hitungan detik) -- beri tahu secara halus TANPA reload, cukup minta simpan sekali lagi.
+        toast('Data sedang ramai diubah beberapa akun sekaligus. Silakan simpan sekali lagi.');
         return false;
       }
     }
     const nowIso = new Date().toISOString();
-    const { error } = await sbClient.from('app_storage')
-      .upsert({ storage_key: storageKey, value: valueObj, updated_at: nowIso }, { onConflict: 'storage_key' });
+    // PENTING: sebelumnya kode ini menebak _serverUpdatedAt pakai jam browser (nowIso) sendiri,
+    // padahal nilai updated_at yang BENAR-BENAR tersimpan di database bisa sedikit berbeda
+    // (mis. kalau tabelnya punya trigger/default yang set waktunya sendiri, atau beda presisi).
+    // Akibatnya, penyimpanan berikutnya salah mengira "diubah pengguna lain" dan reload halaman
+    // padahal sebenarnya tidak ada konflik sama sekali -- ini yang bikin terasa "refresh setelah
+    // simpan". Perbaikannya: baca balik nilai updated_at yang sebenarnya dari hasil upsert.
+    const { data: saved, error } = await sbClient.from('app_storage')
+      .upsert({ storage_key: storageKey, value: valueObj, updated_at: nowIso }, { onConflict: 'storage_key' })
+      .select('updated_at')
+      .maybeSingle();
     if(error) throw error;
-    if(localStateHolder) localStateHolder._serverUpdatedAt = nowIso;
+    if(localStateHolder) localStateHolder._serverUpdatedAt = (saved && saved.updated_at) ? saved.updated_at : nowIso;
     logAudit(actionLabel, {storageKey, op:'UPDATE'});
     return true;
   }catch(e){
@@ -1442,7 +1560,7 @@ async function saveNotaDinasData(){
    ringan). File PDF disimpan di Supabase Storage oleh service backend (lihat folder
    dokumen-kapal-service/), lalu hanya metadata + link/status yang dicatat di sini supaya
    tampil di UI ini. */
-let DOKUMEN_KAPAL = { config: { apiBaseUrl:'http://localhost:3001', apiKey:'' }, records: [] };
+let DOKUMEN_KAPAL = { config: { apiBaseUrl:'http://localhost:3001', apiBaseUrls:['http://localhost:3001'], apiKey:'' }, records: [] };
 const DOKUMEN_KAPAL_STORAGE_KEY = 'dokumen-kapal-data';
 async function loadDokumenKapalData(){
   if(!sbClient) return;
@@ -1454,7 +1572,12 @@ async function loadDokumenKapalData(){
       .maybeSingle();
     if(error) throw error;
     if(data && data.value){
-      DOKUMEN_KAPAL = Object.assign({ config:{apiBaseUrl:'http://localhost:3001', apiKey:''}, records: [] }, data.value);
+      DOKUMEN_KAPAL = Object.assign({ config:{apiBaseUrl:'http://localhost:3001', apiBaseUrls:['http://localhost:3001'], apiKey:''}, records: [] }, data.value);
+      // Migrasi data lama: kalau belum punya apiBaseUrls (array, mendukung beberapa komputer
+      // sebagai cadangan), bentuk dari apiBaseUrl tunggal yang sudah ada supaya tidak hilang.
+      if(!Array.isArray(DOKUMEN_KAPAL.config.apiBaseUrls) || DOKUMEN_KAPAL.config.apiBaseUrls.length===0){
+        DOKUMEN_KAPAL.config.apiBaseUrls = [DOKUMEN_KAPAL.config.apiBaseUrl || 'http://localhost:3001'];
+      }
     }else{
       await saveDokumenKapalData();
     }
@@ -1492,6 +1615,181 @@ async function loadPnbpData(){
 async function savePnbpData(){
   await auditedUpsert(PNBP_STORAGE_KEY, PNBP, 'Menyimpan data Catatan Biaya PNBP Kapal', PNBP);
 }
+
+/* ===== Storage terpisah untuk modul Pasang Lepas Tali Kapal =====
+   Satu record = satu kegiatan (kedatangan ATAU keberangkatan) satu kapal pada satu tanggal,
+   berisi daftar nama petugas yang IKUT pasang/lepas tali saat itu. Dana TOTAL per
+   kegiatan (default Rp150.000) dibagi RATA sesuai jumlah petugas yang ikut kegiatan itu --
+   bisa diubah lewat tombol "Kelola Petugas & Nominal". */
+let TALI = {
+  nominalPerKegiatan: 150000,
+  petugas: ['Pian','Hasadi','Usman','Farhan','Aqshal','Farjar','Ahmad','Rezky'],
+  records: [],
+  // Status amplop per bulan per petugas: { '2026-07': { 'Pian': { diterima:true, waktu:'...ISO' } } }
+  // Diisi OTOMATIS begitu petugas scan QR & membuka slip gajinya (lihat taliTandaiDiterima()).
+  penerimaan: {}
+};
+const TALI_STORAGE_KEY = 'pasang-lepas-tali-data';
+async function loadTaliData(){
+  if(!sbClient) return;
+  try{
+    const { data, error } = await sbClient
+      .from('app_storage')
+      .select('value, updated_at')
+      .eq('storage_key', TALI_STORAGE_KEY)
+      .maybeSingle();
+    if(error) throw error;
+    if(data && data.value){
+      TALI = Object.assign({
+        nominalPerKegiatan: 150000,
+        petugas: ['Pian','Hasadi','Usman','Farhan','Aqshal','Farjar','Ahmad','Rezky'],
+        records: [],
+        penerimaan: {}
+      }, data.value);
+      if(!Array.isArray(TALI.petugas) || !TALI.petugas.length){
+        TALI.petugas = ['Pian','Hasadi','Usman','Farhan','Aqshal','Farjar','Ahmad','Rezky'];
+      }
+      if(!TALI.penerimaan || typeof TALI.penerimaan !== 'object') TALI.penerimaan = {};
+    }else{
+      await saveTaliData();
+    }
+    if(data) TALI._serverUpdatedAt = data.updated_at;
+  }catch(e){
+    toast('Gagal memuat data Pasang Lepas Tali: '+e.message);
+  }
+}
+async function saveTaliData(){
+  await auditedUpsert(TALI_STORAGE_KEY, TALI, 'Menyimpan data Pasang Lepas Tali Kapal', TALI);
+}
+function uidTL(){ return 'tali-'+Date.now()+'-'+Math.random().toString(36).slice(2,8); }
+
+/* ======================= REALTIME SYNC ANTAR AKUN ======================= */
+// Supaya kalau akun LAIN menyimpan perubahan, akun yang sedang login di sini otomatis dapat
+// data terbarunya juga -- tanpa perlu refresh manual sama sekali. Caranya: dengarkan perubahan
+// tabel app_storage lewat Supabase Realtime, lalu update objek data di memori (DATA/TALI/dst)
+// langsung dari data yang dikirim server.
+//
+// Untuk halaman yang sifatnya LIHAT-LIHAT (dashboard, riwayat, laporan, rekap) -- tampilan ikut
+// digambar ulang saat itu juga begitu ada perubahan masuk.
+// Untuk halaman FORM INPUT yang sedang mungkin diketik orang (mis. Input Transaksi) -- kita
+// SENGAJA tidak menggambar ulang seluruh form (supaya ketikan yang sedang berjalan tidak hilang
+// tertimpa); data di memori tetap ter-update, jadi begitu pindah/balik ke halaman itu datanya
+// sudah yang terbaru. Ceklis Pasang Lepas Tali dapat perlakuan khusus: aman digambar ulang
+// SEBAGIAN (cuma tabelnya) karena sudah ada taliRefreshCeklisTable() yang tidak mengganggu form.
+const REALTIME_HOLDERS = {}; // storageKey -> fungsi yang mengembalikan objek data modul terkait
+function registerRealtimeHolder(storageKey, getObjFn){ REALTIME_HOLDERS[storageKey] = getObjFn; }
+const REALTIME_SAFE_AUTO_VIEWS = new Set([
+  'dashboard','riwayat','laporan','pnbp','pengaturan',
+  'kunj-riwayat','kunj-laporan',
+  'paspel-riwayat','paspel-laporan',
+  'mk-riwayat','mk-laporan',
+  'tally-muat-riwayat','tally-muat-laporan','tally-bongkar-riwayat','tally-bongkar-laporan',
+  'kk-dashboard','kk-riwayat',
+  'nd-riwayat','nd-folder',
+  'dk-riwayat','dk-folder',
+  'tali-rekap'
+]);
+function applyRealtimeUpdate(storageKey, newValue, updatedAt){
+  const getObj = REALTIME_HOLDERS[storageKey];
+  if(!getObj || !newValue) return;
+  const holder = getObj();
+  if(!holder) return;
+  Object.assign(holder, newValue);
+  holder._serverUpdatedAt = updatedAt; // supaya penyimpanan berikutnya dari klien ini tidak salah kira konflik
+  if(storageKey===TALI_STORAGE_KEY && CURRENT_VIEW==='tali-input' && document.getElementById('tali-ceklis-table-card')){
+    taliRefreshCeklisTable();
+    return;
+  }
+  if(REALTIME_SAFE_AUTO_VIEWS.has(CURRENT_VIEW)){
+    render();
+  }
+}
+let REALTIME_CHANNEL = null;
+let REALTIME_RECONNECT_TIMER = null;
+let REALTIME_RECONNECT_DELAY = 2000; // naik bertahap (backoff) tiap gagal, supaya tidak membanjiri server
+function initRealtimeSync(){
+  if(!sbClient) return;
+  try{
+    if(REALTIME_CHANNEL){ sbClient.removeChannel(REALTIME_CHANNEL); REALTIME_CHANNEL = null; }
+    REALTIME_CHANNEL = sbClient.channel('app_storage_sync')
+      .on('postgres_changes', { event:'*', schema:'public', table:'app_storage' }, (payload)=>{
+        const row = payload.new || payload.old;
+        if(!row || !row.storage_key || payload.eventType==='DELETE') return;
+        applyRealtimeUpdate(row.storage_key, row.value, row.updated_at);
+      })
+      .subscribe((status)=>{
+        // Sambungan realtime bisa putus sendiri (HP tidur, wifi pindah, dsb). Kalau itu terjadi,
+        // sambungkan lagi secara OTOMATIS di latar belakang -- pengguna tidak perlu melakukan
+        // apa-apa, apalagi me-refresh halaman sendiri.
+        if(status === 'SUBSCRIBED'){
+          REALTIME_RECONNECT_DELAY = 2000; // koneksi berhasil lagi -- reset jeda percobaan ulang
+          if(REALTIME_RECONNECT_TIMER){ clearTimeout(REALTIME_RECONNECT_TIMER); REALTIME_RECONNECT_TIMER = null; }
+          // Baru saja tersambung (termasuk setelah putus-sambung) -- ambil data terbaru sekali
+          // secara diam-diam, untuk menutup kemungkinan ada perubahan yang terlewat selagi putus.
+          silentResyncAll();
+        }else if(status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED'){
+          scheduleRealtimeReconnect();
+        }
+      });
+  }catch(e){
+    console.warn('Realtime sync tidak aktif:', e.message);
+    scheduleRealtimeReconnect();
+  }
+}
+function scheduleRealtimeReconnect(){
+  if(REALTIME_RECONNECT_TIMER) return;
+  REALTIME_RECONNECT_TIMER = setTimeout(()=>{
+    REALTIME_RECONNECT_TIMER = null;
+    REALTIME_RECONNECT_DELAY = Math.min(REALTIME_RECONNECT_DELAY * 1.6, 30000);
+    initRealtimeSync();
+  }, REALTIME_RECONNECT_DELAY);
+}
+
+// ===== Jaring pengaman: sinkron ulang diam-diam di latar belakang =====
+// Realtime seharusnya sudah membuat semua akun selalu terhubung tanpa refresh manual sama
+// sekali. Tapi kalau sewaktu-waktu koneksi realtime sempat putus tanpa terdeteksi (mis. tab
+// di-minimize lama, jaringan berpindah), fungsi ini jadi cadangan: mengambil data TERBARU
+// dari server untuk semua modul, TANPA reload halaman dan TANPA mengganggu form yang sedang
+// diisi (pakai jalur yang sama dengan applyRealtimeUpdate, yang sudah tahu cara aman).
+let SILENT_RESYNC_IN_PROGRESS = false;
+async function silentResyncAll(){
+  if(!sbClient || SILENT_RESYNC_IN_PROGRESS) return;
+  SILENT_RESYNC_IN_PROGRESS = true;
+  try{
+    const keys = Object.keys(REALTIME_HOLDERS);
+    const { data, error } = await sbClient
+      .from('app_storage')
+      .select('storage_key, value, updated_at')
+      .in('storage_key', keys);
+    if(error) throw error;
+    (data||[]).forEach(row=>{ applyRealtimeUpdate(row.storage_key, row.value, row.updated_at); });
+  }catch(e){
+    console.warn('Sinkron ulang latar belakang gagal (akan dicoba lagi):', e.message);
+  }finally{
+    SILENT_RESYNC_IN_PROGRESS = false;
+  }
+}
+// Jaring pengaman tambahan: kalau tab yang sedang di-minimize/terkunci dibuka kembali, atau
+// koneksi internet baru pulih, langsung sinkron ulang diam-diam saat itu juga (tidak menunggu
+// interval berikutnya) -- ini yang biasanya bikin data "basi" setelah HP terkunci lama.
+document.addEventListener('visibilitychange', ()=>{
+  if(document.visibilityState === 'visible' && CURRENT_USER) silentResyncAll();
+});
+window.addEventListener('online', ()=>{ if(CURRENT_USER) silentResyncAll(); });
+// Dan sebagai jaring pengaman terakhir, cek ulang secara berkala tiap 45 detik -- kalau realtime
+// ternyata belum aktif di project Supabase-nya (perlu diaktifkan sekali dari Dashboard Supabase),
+// akun-akun tetap akan saling menerima update terbaru lewat jalur cadangan ini, tetap tanpa reload.
+setInterval(()=>{ if(CURRENT_USER) silentResyncAll(); }, 45000);
+registerRealtimeHolder(STORAGE_KEY, ()=>DATA);
+registerRealtimeHolder(KUNJUNGAN_STORAGE_KEY, ()=>KUNJUNGAN);
+registerRealtimeHolder(PASPEL_STORAGE_KEY, ()=>PASPEL);
+registerRealtimeHolder(MISS_KEAGENAN_STORAGE_KEY, ()=>MISS_KEAGENAN);
+registerRealtimeHolder(TALLY_STORAGE_KEY, ()=>TALLY);
+registerRealtimeHolder(KAS_KEAGENAN_STORAGE_KEY, ()=>KAS_KEAGENAN);
+registerRealtimeHolder(NOTA_DINAS_STORAGE_KEY, ()=>NOTA_DINAS);
+registerRealtimeHolder(DOKUMEN_KAPAL_STORAGE_KEY, ()=>DOKUMEN_KAPAL);
+registerRealtimeHolder(PNBP_STORAGE_KEY, ()=>PNBP);
+registerRealtimeHolder(TALI_STORAGE_KEY, ()=>TALI);
 
 /* ======================= LOGIN ======================= */
 async function previewNrp(){
@@ -1564,6 +1862,7 @@ async function doLogin(){
       loadNotaDinasData(),
       loadPnbpData(),
       loadDokumenKapalData(),
+      loadTaliData(),
     ]);
   } finally {
     if(btnMasuk){ btnMasuk.disabled = false; btnMasuk.textContent = teksAsli; }
@@ -1604,6 +1903,8 @@ function doLogout(){
   clearSessionState();
   closeSidebarDrawer();
   hideAdminAiChat();
+  closeModal(); // tutup modal apa pun yang masih terbuka (mis. Pengaturan Gemini / konfirmasi
+                // hapus riwayat) supaya tidak nyangkut menumpuk di atas layar login setelah logout/idle-timeout
   document.getElementById('app-shell').classList.add('hidden');
   document.getElementById('login-screen').classList.remove('hidden');
   document.getElementById('login-nrp').value='';
@@ -1618,6 +1919,8 @@ const VIEW_META = {
   riwayat:{title:'Riwayat Transaksi', sub:'Semua transaksi yang tercatat'},
   laporan:{title:'Laporan Bulanan', sub:'Setujui dan unduh laporan resmi per bulan'},
   pnbp:{title:'Catatan Biaya PNBP Kapal', sub:'Pengingat status penggantian biaya PNBP oleh Giro — tidak masuk ke laporan bulanan'},
+  'tali-input':{title:'Ceklis Pasang Lepas Tali', sub:'Catat petugas yang ikut pasang/lepas tali tiap kedatangan & keberangkatan kapal'},
+  'tali-rekap':{title:'Rekap Pasang Lepas Tali', sub:'Rekap bulanan jumlah kegiatan & pembagian dana per petugas'},
   pengaturan:{title:'Pengaturan', sub:'Pengguna NRP dan saldo awal'},
   'kunj-input':{title:'Input Kunjungan Kapal', sub:'Catat data dari dashboard Inaportnet secara manual'},
   'kunj-riwayat':{title:'Riwayat Kunjungan Kapal', sub:'Semua data kunjungan yang tercatat'},
@@ -1773,6 +2076,8 @@ function render(){
   if(CURRENT_VIEW==='dk-scan') return renderDokumenKapalScan(c, actions);
   if(CURRENT_VIEW==='dk-folder') return renderDokumenKapalFolder(c, actions);
   if(CURRENT_VIEW==='dk-riwayat') return renderDokumenKapalRiwayat(c, actions);
+  if(CURRENT_VIEW==='tali-input') return renderTaliInput(c, actions);
+  if(CURRENT_VIEW==='tali-rekap') return renderTaliRekap(c, actions);
 }
 
 /* ======================= DASHBOARD ======================= */
@@ -1831,7 +2136,88 @@ function renderDashboard(c, actions){
         </tbody>
       </table>
     </div>
+
+    ${renderDashboardOpsProjection(bulan)}
   `;
+}
+
+/* ===== Proyeksi Pendapatan Uang Ops Kapal (3 skenario) =====
+   Ini proyeksi/simulasi "kalau-kalau", BUKAN angka transaksi riil yang sudah tercatat --
+   tujuannya buat perkiraan kasar kalau salah satu/beberapa kapal tidak beroperasi bulan
+   berjalan. Tarif & jumlah trip per kapal:
+     - KM Tilongkabila : Rp 710.500 x 4 trip/bulan (tetap, tidak tergantung jumlah hari)
+     - KM Sanus 78     : Rp 245.000 x 2 trip/bulan (tetap)
+     - KM Jetliner     : Rp 710.500 x 5 trip/minggu -> jumlah trip/bulan dihitung dari
+                         jumlah hari di bulan terpilih (hari/7 x 5, dibulatkan)
+   Skenario:
+     1) Pendapatan Terendah  -- hanya 1 kapal yang beroperasi (dibandingkan Tilongkabila
+        sendiri vs Sanus 78 sendiri, dua-duanya ditampilkan)
+     2) Pendapatan Menengah  -- 2 dari 3 kapal beroperasi bersamaan (3 kombinasi)
+     3) Pendapatan Optimal   -- ketiga kapal beroperasi semua (rincian kontribusi tiap kapal) */
+function opsProjectionShips(bulanKey){
+  const [y,m] = (bulanKey||currentMonthKey()).split('-').map(Number);
+  const hariDiBulan = new Date(y, m, 0).getDate(); // hari ke-0 bulan berikutnya = hari terakhir bulan ini
+  const jetlinerTrip = Math.round((hariDiBulan/7)*5);
+  return [
+    { nama:'KM Tilongkabila', tarif:710500, trip:4, satuan:'bulan', total:710500*4 },
+    { nama:'KM Sanus 78',     tarif:245000, trip:2, satuan:'bulan', total:245000*2 },
+    { nama:'KM Jetliner',     tarif:710500, trip:jetlinerTrip, satuan:'minggu (5x)', total:710500*jetlinerTrip }
+  ];
+}
+function dashBarRow(label, value, maxValue, colorVar, ket){
+  const pct = maxValue>0 ? Math.max(4, Math.round((value/maxValue)*100)) : 4;
+  return `
+    <div style="margin-bottom:12px;">
+      <div style="display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:4px;">
+        <span>${escapeHtml(label)}${ket ? `<span style="color:var(--ink-soft);font-weight:400;"> — ${escapeHtml(ket)}</span>` : ''}</span>
+        <b>${fmtRp(value)}</b>
+      </div>
+      <div style="background:#EFEAE0;border-radius:5px;height:14px;overflow:hidden;">
+        <div style="width:${pct}%;height:100%;background:${colorVar};border-radius:5px;"></div>
+      </div>
+    </div>`;
+}
+function renderDashboardOpsProjection(bulanKey){
+  const ships = opsProjectionShips(bulanKey);
+  const [tilong, sanus, jetliner] = ships;
+
+  // Skenario 1: hanya 1 kapal beroperasi (terendah)
+  const skenario1Max = Math.max(tilong.total, sanus.total);
+
+  // Skenario 2: 2 dari 3 kapal beroperasi bersamaan (menengah)
+  const kombinasi2 = [
+    { nama:'Tilongkabila + Sanus 78', total: tilong.total + sanus.total },
+    { nama:'Tilongkabila + Jetliner', total: tilong.total + jetliner.total },
+    { nama:'Sanus 78 + Jetliner',     total: sanus.total + jetliner.total }
+  ];
+  const skenario2Max = Math.max(...kombinasi2.map(k=>k.total));
+
+  // Skenario 3: ketiga kapal beroperasi (optimal)
+  const totalOptimal = tilong.total + sanus.total + jetliner.total;
+
+  return `
+    <div class="card">
+      <p class="card-title">Proyeksi Pendapatan Uang Ops Kapal — ${monthLabel(bulanKey)}</p>
+      <p style="font-size:12px;color:var(--ink-soft);margin:-6px 0 16px;">
+        Simulasi perkiraan, bukan angka transaksi riil — dipakai untuk memperkirakan pendapatan uang Ops kalau tidak semua kapal beroperasi bulan ini.
+        Tarif: Tilongkabila ${fmtRp(710500)} x 4 trip/bulan, Sanus 78 ${fmtRp(245000)} x 2 trip/bulan, Jetliner ${fmtRp(710500)} x 5 trip/minggu (≈${jetliner.trip} trip di bulan ini, ${new Date(Number(bulanKey.split('-')[0]), Number(bulanKey.split('-')[1]), 0).getDate()} hari).
+      </p>
+
+      <p style="font-size:12.5px;font-weight:700;margin:0 0 8px;color:var(--rust-dark);">1. Pendapatan Terendah — hanya 1 kapal beroperasi</p>
+      ${dashBarRow(tilong.nama, tilong.total, skenario1Max, 'var(--rust)', tilong.trip+' trip/bulan')}
+      ${dashBarRow(sanus.nama, sanus.total, skenario1Max, 'var(--rust)', sanus.trip+' trip/bulan')}
+
+      <p style="font-size:12.5px;font-weight:700;margin:20px 0 8px;color:var(--amber-dark);">2. Pendapatan Menengah — 2 dari 3 kapal beroperasi</p>
+      ${kombinasi2.map(k=>dashBarRow(k.nama, k.total, skenario2Max, 'var(--amber)')).join('')}
+
+      <p style="font-size:12.5px;font-weight:700;margin:20px 0 8px;color:var(--green-dark);">3. Pendapatan Optimal — ketiga kapal beroperasi</p>
+      ${dashBarRow(tilong.nama, tilong.total, totalOptimal, 'var(--teal)', tilong.trip+' trip/bulan')}
+      ${dashBarRow(sanus.nama, sanus.total, totalOptimal, 'var(--teal)', sanus.trip+' trip/bulan')}
+      ${dashBarRow(jetliner.nama, jetliner.total, totalOptimal, 'var(--teal)', jetliner.trip+' trip/bulan')}
+      <div style="display:flex;justify-content:space-between;font-size:13.5px;font-weight:700;padding-top:10px;border-top:1px solid var(--line,#e2ddd2);margin-top:6px;">
+        <span>Total Optimal (3 kapal)</span><span style="color:var(--green-dark);">${fmtRp(totalOptimal)}</span>
+      </div>
+    </div>`;
 }
 
 /* ======================= INPUT TRANSAKSI ======================= */
@@ -7494,8 +7880,22 @@ function confirmDeleteNotaDinas(id){
 // email 1-klik lewat backend tersebut. File PDF TIDAK disimpan di app_storage (hanya
 // metadata + status pengiriman yang dicatat di sini).
 function uidDK(){ return 'dk-'+Date.now()+'-'+Math.random().toString(36).slice(2,8); }
-function dkApiBase(){ return (DOKUMEN_KAPAL.config && DOKUMEN_KAPAL.config.apiBaseUrl) || 'http://localhost:3001'; }
+// Daftar alamat backend (bisa lebih dari 1 komputer) -- dicoba SATU PER SATU secara berurutan.
+// Tujuannya: kalau komputer pertama (mis. laptop utama) mati/tidak terjangkau, sistem otomatis
+// mencoba komputer berikutnya di daftar ini sebagai cadangan, tanpa perlu ganti pengaturan manual.
+function dkApiBaseList(){
+  const cfg = DOKUMEN_KAPAL.config || {};
+  const list = Array.isArray(cfg.apiBaseUrls) ? cfg.apiBaseUrls.filter(Boolean) : [];
+  if(list.length) return list;
+  return [cfg.apiBaseUrl || 'http://localhost:3001'];
+}
+// Dipertahankan untuk kompatibilitas kode lain yang masih memanggil dkApiBase() -- selalu
+// mengembalikan alamat PERTAMA di daftar (dipakai mis. untuk pesan error/tampilan ringkas).
+function dkApiBase(){ return dkApiBaseList()[0] || 'http://localhost:3001'; }
 function dkApiKey(){ return (DOKUMEN_KAPAL.config && DOKUMEN_KAPAL.config.apiKey) || ''; }
+// Alamat backend yang TERAKHIR KALI berhasil merespons -- dicoba lebih dulu di panggilan
+// berikutnya supaya tidak perlu mencoba ulang alamat yang sudah diketahui mati setiap kali.
+let DK_LAST_WORKING_URL = null;
 
 /**
  * Pembungkus fetch() terpusat untuk semua panggilan ke backend dokumen-kapal-service.
@@ -7508,6 +7908,10 @@ function dkApiKey(){ return (DOKUMEN_KAPAL.config && DOKUMEN_KAPAL.config.apiKey
  * - Kalau responsnya ternyata BUKAN JSON (mis. halaman HTML dari ngrok/hosting lain),
  *   melempar pesan error yang jelas -- bukan error teknis membingungkan seperti
  *   "Unexpected token '<'".
+ * - MENDUKUNG BEBERAPA ALAMAT BACKEND (multi-komputer): kalau alamat pertama tidak
+ *   terjangkau (mis. laptop utama sedang mati), otomatis mencoba alamat berikutnya di
+ *   dkApiBaseList() satu per satu sampai salah satu berhasil merespons. Kalau SEMUA alamat
+ *   gagal dihubungi, baru dianggap error jaringan (bukan cuma alamat pertama).
  */
 async function dkFetch(path, options){
   options = options || {};
@@ -7515,21 +7919,38 @@ async function dkFetch(path, options){
     { 'x-api-key': dkApiKey(), 'ngrok-skip-browser-warning': 'true' },
     options.headers || {}
   );
-  let res;
-  try{
-    res = await fetch(dkApiBase()+path, Object.assign({}, options, { headers }));
-  }catch(networkErr){
-    throw new Error('Tidak bisa menjangkau service backend di '+dkApiBase()+'. Pastikan service sedang berjalan dan alamatnya benar.');
+  const daftarAlamat = dkApiBaseList();
+  // Coba alamat yang terakhir kali berhasil lebih dulu (kalau ada & masih ada di daftar).
+  const urutan = DK_LAST_WORKING_URL && daftarAlamat.includes(DK_LAST_WORKING_URL)
+    ? [DK_LAST_WORKING_URL, ...daftarAlamat.filter(u=>u!==DK_LAST_WORKING_URL)]
+    : daftarAlamat;
+  let lastNetworkErr = null;
+  for(const base of urutan){
+    let res;
+    try{
+      res = await fetch(base+path, Object.assign({}, options, { headers }));
+    }catch(networkErr){
+      lastNetworkErr = networkErr;
+      continue; // alamat ini tidak terjangkau, coba alamat berikutnya di daftar
+    }
+    let json;
+    try{
+      json = await res.json();
+    }catch(parseErr){
+      throw new Error('Backend di '+base+' merespons dengan format tak terduga (bukan JSON) -- kemungkinan alamat service salah, atau (kalau pakai ngrok) tertahan halaman peringatan ngrok. Coba buka alamat service-nya langsung di tab browser baru untuk cek.');
+    }
+    if(res.status===401) throw new Error('API Key salah. Samakan dengan API_SECRET_KEY di file .env backend.');
+    if(!res.ok || json.error) throw new Error(json.error || 'Terjadi kesalahan pada backend.');
+    DK_LAST_WORKING_URL = base; // ingat alamat yang berhasil untuk panggilan berikutnya
+    return json;
   }
-  let json;
-  try{
-    json = await res.json();
-  }catch(parseErr){
-    throw new Error('Backend merespons dengan format tak terduga (bukan JSON) -- kemungkinan alamat service salah, atau (kalau pakai ngrok) tertahan halaman peringatan ngrok. Coba buka alamat service-nya langsung di tab browser baru untuk cek.');
-  }
-  if(res.status===401) throw new Error('API Key salah. Samakan dengan API_SECRET_KEY di file .env backend.');
-  if(!res.ok || json.error) throw new Error(json.error || 'Terjadi kesalahan pada backend.');
-  return json;
+  // Semua alamat di daftar gagal dihubungi.
+  const daftarTeks = daftarAlamat.join(', ');
+  throw new Error(
+    daftarAlamat.length>1
+      ? 'Tidak bisa menjangkau service backend di alamat manapun ('+daftarTeks+'). Pastikan minimal salah satu komputer yang menjalankan service sedang menyala & terhubung ke jaringan yang sama.'
+      : 'Tidak bisa menjangkau service backend di '+daftarTeks+'. Pastikan service sedang berjalan dan alamatnya benar.'
+  );
 }
 
 /**
@@ -7572,9 +7993,9 @@ function dkAllKapal(){
 function dkRecordsForKapal(nama){
   return DK_LIVE_DOCS.filter(r=>r.namaKapal===nama);
 }
-function dkGroupKey(r){ return r.namaKapal+'||'+r.tanggalTerbit; }
+function dkGroupKey(r){ return (r.nomorPkk||'')+'||'+r.namaKapal; }
 function dkJenisLabel(j){
-  const map = { 'LK3-NAKHODA':'LK3 Nakhoda', 'LKK-AGEN':'LKK Agen', 'CREWLIST':'Crewlist', 'SPB':'SPB' };
+  const map = { 'LK3-NAKHODA':'LK3 Nakhoda', 'LKK-AGEN':'LKK Agen', 'CREWLIST':'Crewlist', 'CREWLIST-TERLAMPIR':'Crewlist Terlampir', 'SPB':'SPB' };
   return map[j] || j;
 }
 /**
@@ -7638,11 +8059,14 @@ function renderDokumenKapalScan(c, actions){
         Diisi sekali saja saat pertama kali setup (biasanya tidak perlu diubah lagi). Ini alamat service Node.js yang menjalankan proses login Inaportnet, pengecekan berkala, dan pengiriman email — lihat folder <span style="font-family:var(--font-mono);">dokumen-kapal-service/</span>.
       </p>
       <div class="form-grid">
-        <div class="form-field">
-          <label>Alamat service (API Base URL)</label>
-          <input type="text" id="dk-cfg-url" value="${escapeHtml(dkApiBase())}" placeholder="http://localhost:3001">
+        <div class="form-field full">
+          <label>Alamat service (API Base URL) — boleh lebih dari satu komputer, 1 alamat per baris</label>
+          <textarea id="dk-cfg-urls" rows="3" style="font-family:var(--font-mono);font-size:12.5px;" placeholder="http://192.168.1.10:3001&#10;http://192.168.1.20:3001">${escapeHtml(dkApiBaseList().join('\n'))}</textarea>
+          <p style="font-size:11px;color:var(--ink-soft);margin:4px 0 0;">
+            Kalau diisi lebih dari satu, sistem akan mencoba alamat pertama dulu; kalau komputer itu mati/tidak terjangkau, otomatis dicoba alamat berikutnya di baris bawahnya — begitu seterusnya. Jadi kalau laptop utama Anda mati, sistem masih bisa jalan lewat komputer lain yang alamatnya didaftarkan di sini (asalkan service <span style="font-family:var(--font-mono);">dokumen-kapal-service</span> juga menyala di komputer itu, dan API Key-nya sama).
+          </p>
         </div>
-        <div class="form-field">
+        <div class="form-field full">
           <label>API Key</label>
           <input type="text" id="dk-cfg-key" value="${escapeHtml(dkApiKey())}" placeholder="isi sesuai API_SECRET_KEY di file .env backend">
         </div>
@@ -7685,7 +8109,7 @@ async function dkRefreshWatchlist(){
           </tr>`).join('')}
         </tbody>
       </table>
-      <p style="font-size:11px;color:var(--ink-soft);margin:10px 0 0;">Sistem mengecek ulang setiap link aktif secara otomatis di latar belakang (default tiap 30 menit, selama service backend menyala).</p>
+      <p style="font-size:11px;color:var(--ink-soft);margin:10px 0 0;">Sistem mengecek ulang setiap link aktif (dan mencari pengajuan baru) secara otomatis di latar belakang (default tiap 5 menit, selama service backend menyala).</p>
     `;
   }catch(e){
     box.innerHTML = `<p style="margin:0;color:var(--rust-dark);">Gagal memuat: ${escapeHtml(e.message)}</p>`;
@@ -7773,12 +8197,19 @@ async function dkKonfirmasiHapusWatchlist(id){
   }
 }
 function dkSaveConfig(){
+  const urls = document.getElementById('dk-cfg-urls').value
+    .split('\n')
+    .map(s=>s.trim().replace(/\/+$/,''))
+    .filter(Boolean);
+  if(!urls.length) urls.push('http://localhost:3001');
   DOKUMEN_KAPAL.config = {
-    apiBaseUrl: document.getElementById('dk-cfg-url').value.trim().replace(/\/+$/,'') || 'http://localhost:3001',
+    apiBaseUrl: urls[0], // dipertahankan untuk kompatibilitas kode/data lama
+    apiBaseUrls: urls,
     apiKey: document.getElementById('dk-cfg-key').value.trim()
   };
+  DK_LAST_WORKING_URL = null; // reset, coba lagi dari alamat pertama sesuai urutan baru
   saveDokumenKapalData();
-  toast('Pengaturan koneksi backend disimpan.');
+  toast(urls.length>1 ? `Pengaturan koneksi backend disimpan (${urls.length} alamat terdaftar).` : 'Pengaturan koneksi backend disimpan.');
   dkRefreshWatchlist();
 }
 async function dkTriggerScrape(){
@@ -8362,6 +8793,761 @@ function confirmDeletePnbp(id){
   render();
 }
 
+/* ======================= PASANG LEPAS TALI KAPAL ======================= */
+function taliJenisLabel(j){ return j==='keberangkatan' ? 'Keberangkatan' : 'Kedatangan'; }
+function taliRecordsSorted(){
+  return TALI.records.slice().sort((a,b)=> (b.tanggal||'').localeCompare(a.tanggal||'') || (b.dibuatPada||'').localeCompare(a.dibuatPada||''));
+}
+function taliRecordsForMonth(bulan){
+  return taliRecordsSorted().filter(r=>(r.tanggal||'').slice(0,7)===bulan);
+}
+function taliMonthsSorted(){
+  const set = new Set(TALI.records.map(r=>(r.tanggal||'').slice(0,7)).filter(Boolean));
+  set.add(TALI_SELECTED_BULAN);
+  set.add(currentMonthKey());
+  return Array.from(set).sort().reverse();
+}
+// Menyimpan tanggal/kapal/jenis terakhir yang dipakai user di form ceklis, supaya saat
+// input beberapa petugas berturut-turut untuk kegiatan yang sama, dropdown-nya TIDAK reset
+// ke pilihan default tiap kali form digambar ulang setelah "Simpan ceklis" -- cukup pilih
+// sekali, lalu tinggal centang petugas berikutnya dan simpan lagi.
+let TALI_LAST_INPUT = { tanggal: null, kapal: 'KM. Tilongkabila', jenis: 'kedatangan' };
+function renderTaliInput(c, actions){
+  const today = new Date().toISOString().slice(0,10);
+  const bulanIni = currentMonthKey();
+  const list = taliRecordsForMonth(bulanIni);
+  const defTanggal = TALI_LAST_INPUT.tanggal || today;
+  const defKapal = TALI_LAST_INPUT.kapal || 'KM. Tilongkabila';
+  const defJenis = TALI_LAST_INPUT.jenis || 'kedatangan';
+  actions.innerHTML = CURRENT_USER.isAdmin
+    ? `<button class="btn btn-ghost btn-sm" onclick="taliKelolaPetugas()">⚙️ Kelola Petugas &amp; Nominal</button>`
+    : '';
+  c.innerHTML = `
+    <div class="card" style="border-color:#E4C77A;background:#FDF8EA;font-size:12.5px;color:var(--amber-dark);">
+      Ceklis Pasang Lepas Tali bersifat pencatatan &amp; rekap pembagian dana petugas tali kapal saja — data di sini <b>tidak</b> otomatis masuk ke Laporan Bulanan Buku Kas Operasional. Dana <b>${fmtRp(TALI.nominalPerKegiatan)}</b> per kedatangan/keberangkatan dibagi <b>rata sesuai jumlah petugas yang ikut</b> — kalau 8 orang hadir dibagi 8, kalau cuma 3 orang dibagi 3, dst.
+      ${!CURRENT_USER.isAdmin ? '<br>Nama kamu belum ada di daftar petugas atau nominalnya perlu diubah? Hubungi Admin untuk menambahkan lewat menu "Kelola Petugas & Nominal".' : ''}
+    </div>
+    <div class="card">
+      <p class="card-title">Catat ceklis pasang/lepas tali baru</p>
+      <div class="form-grid">
+        <div class="form-field">
+          <label>Tanggal</label>
+          <input type="date" id="tali-tanggal" value="${defTanggal}">
+        </div>
+        <div class="form-field">
+          <label>Nama Kapal</label>
+          <select id="tali-kapal">
+            <option value="KM. Tilongkabila" ${defKapal==='KM. Tilongkabila'?'selected':''}>KM. Tilongkabila</option>
+            <option value="KM. Sanus 78" ${defKapal==='KM. Sanus 78'?'selected':''}>KM. Sanus 78</option>
+            <option value="KM. Jetliner" ${defKapal==='KM. Jetliner'?'selected':''}>KM. Jetliner</option>
+          </select>
+        </div>
+        <div class="form-field">
+          <label>Jenis Trip</label>
+          <select id="tali-jenis">
+            <option value="kedatangan" ${defJenis==='kedatangan'?'selected':''}>Kedatangan</option>
+            <option value="keberangkatan" ${defJenis==='keberangkatan'?'selected':''}>Keberangkatan</option>
+          </select>
+        </div>
+      </div>
+      <div style="margin-top:14px;">
+        <label style="display:block;font-size:12.5px;font-weight:600;color:var(--ink-soft);margin-bottom:8px;">Petugas yang ikut pasang/lepas tali (centang yang ikut, kosongkan yang tidak ikut)</label>
+        <div id="tali-petugas-checklist" style="display:flex;flex-wrap:wrap;gap:10px 18px;">
+          ${TALI.petugas.map((nama,i)=>`
+            <label style="display:flex;align-items:center;gap:6px;font-size:13.5px;cursor:pointer;">
+              <input type="checkbox" class="tali-cb-petugas" value="${escapeHtml(nama)}" style="width:auto;"> ${escapeHtml(nama)}
+            </label>`).join('')}
+        </div>
+        ${TALI.petugas.length===0 ? '<p style="font-size:12.5px;color:var(--ink-soft);">Belum ada daftar petugas — klik "Kelola Petugas & Nominal" di kanan atas untuk menambahkan.</p>' : ''}
+      </div>
+      <div style="margin-top:18px;">
+        <button class="btn btn-gold" onclick="submitTali()">Simpan ceklis</button>
+      </div>
+    </div>
+    <div class="card" id="tali-ceklis-table-card" style="padding:0;overflow:auto;">
+      ${taliCeklisTableHtml(bulanIni, list)}
+    </div>
+  `;
+}
+function taliCeklisTableHtml(bulanIni, list){
+  return `
+      <p class="card-title" style="margin:16px 16px 4px;">Ceklis bulan ${monthLabel(bulanIni)}</p>
+      <table class="ledger">
+        <thead><tr>
+          <th>Tanggal</th><th>Kapal</th><th>Trip</th>
+          ${TALI.petugas.map(nama=>`<th style="text-align:center;">${escapeHtml(nama)}</th>`).join('')}
+          <th></th>
+        </tr></thead>
+        <tbody>
+          ${list.length===0 ? '' : list.map(taliRowHtml).join('')}
+        </tbody>
+        ${list.length>0 ? `<tfoot><tr style="font-weight:700;background:var(--paper-soft,#f6f3ee);">
+          <td colspan="3">Total ikut bulan ini</td>
+          ${TALI.petugas.map(nama=>`<td style="text-align:center;">${list.filter(r=>(r.ikut||[]).includes(nama)).length}</td>`).join('')}
+          <td></td>
+        </tr></tfoot>` : ''}
+      </table>
+      ${list.length===0 ? `<div class="empty-state"><p>Belum ada ceklis pasang/lepas tali bulan ini.</p></div>` : ''}
+  `;
+}
+// Update HANYA tabel ceklis (tanpa render() penuh) supaya form di atasnya -- termasuk
+// tanggal/kapal/jenis trip yang sedang dipilih -- tidak ikut ter-reset/redraw sama sekali.
+// Ini yang bikin "auto simpan" terasa cepat dan kapal tidak balik ke pilihan awal.
+function taliRefreshCeklisTable(){
+  const card = document.getElementById('tali-ceklis-table-card');
+  if(!card) return;
+  const bulanIni = currentMonthKey();
+  const list = taliRecordsForMonth(bulanIni);
+  card.innerHTML = taliCeklisTableHtml(bulanIni, list);
+}
+function taliRowHtml(r){
+  return `<tr>
+    <td>${fmtDate(r.tanggal)}</td>
+    <td class="name-cell">${escapeHtml(r.kapal||'-')}</td>
+    <td>${taliJenisLabel(r.jenis)}</td>
+    ${TALI.petugas.map(nama=>`<td style="text-align:center;">${(r.ikut||[]).includes(nama) ? '✅' : '—'}</td>`).join('')}
+    <td><button class="btn btn-sm btn-rust" onclick="deleteTali('${r.id}')">Hapus</button></td>
+  </tr>`;
+}
+async function submitTali(){
+  const tanggal = document.getElementById('tali-tanggal').value;
+  const kapal = document.getElementById('tali-kapal').value.trim();
+  const jenis = document.getElementById('tali-jenis').value;
+  const ikut = Array.from(document.querySelectorAll('.tali-cb-petugas:checked')).map(el=>el.value);
+  if(!tanggal){ toast('Tanggal wajib diisi.'); return; }
+  if(!kapal){ toast('Nama kapal wajib diisi.'); return; }
+  if(ikut.length===0){ toast('Centang minimal satu petugas yang ikut pasang/lepas tali.'); return; }
+  // Ingat tanggal/kapal/jenis ini untuk input berikutnya, supaya form tidak reset ke default
+  // lagi -- tinggal centang petugas berikutnya dan simpan lagi tanpa perlu pilih ulang kapal.
+  TALI_LAST_INPUT = { tanggal, kapal, jenis };
+  const btnSimpan = document.querySelector('#content .btn-gold');
+  if(btnSimpan){ btnSimpan.disabled = true; btnSimpan.textContent = 'Menyimpan…'; }
+  // PENTING: satu kegiatan (tanggal+kapal+jenis yang sama) harus jadi SATU record saja, supaya
+  // dana Rp150.000-nya kebagi rata ke SEMUA orang yang ikut kegiatan itu -- bukan dihitung penuh
+  // per orang. Kalau kegiatan yang sama sudah pernah dicatat bulan ini, gabungkan (tambahkan)
+  // nama yang baru dicentang ke record yang sudah ada, jangan bikin record baru terpisah.
+  const existing = TALI.records.find(r=> r.tanggal===tanggal && (r.kapal||'').trim()===kapal && r.jenis===jenis);
+  try{
+    if(existing){
+      const gabungan = Array.from(new Set([...(existing.ikut||[]), ...ikut]));
+      const tambahan = ikut.filter(n=>!(existing.ikut||[]).includes(n));
+      existing.ikut = gabungan;
+      existing.dibuatPada = new Date().toISOString();
+      await saveTaliData();
+      toast('Kegiatan '+kapal+' ('+taliJenisLabel(jenis)+') tanggal ini sudah ada — '+(tambahan.length? tambahan.join(', ')+' ditambahkan ke ' : 'petugas sudah tercatat semua di ')+'ceklis yang sama. Total ikut sekarang '+gabungan.length+' orang.');
+    }else{
+      TALI.records.push({
+        id: uidTL(), tanggal, kapal, jenis, ikut,
+        dibuatOleh: CURRENT_USER.name, dibuatPada: new Date().toISOString()
+      });
+      await saveTaliData();
+      toast('Ceklis pasang/lepas tali '+kapal+' ('+taliJenisLabel(jenis)+') tersimpan — '+ikut.length+' petugas ikut.');
+    }
+  } finally {
+    if(btnSimpan){ btnSimpan.disabled = false; btnSimpan.textContent = 'Simpan ceklis'; }
+    // Kosongkan centang petugas saja -- tanggal/kapal/jenis SENGAJA tidak disentuh sama sekali
+    // supaya tetap di kapal yang sama sampai diganti manual, dan tabel ceklis di bawah cukup
+    // diperbarui sebagian (bukan render() ulang seluruh halaman) supaya terasa instan.
+    document.querySelectorAll('.tali-cb-petugas').forEach(el=>el.checked=false);
+    taliRefreshCeklisTable();
+  }
+}
+function deleteTali(id){
+  document.getElementById('modal-root').innerHTML = `
+    <div class="modal-overlay">
+      <div class="modal-box" style="max-width:420px;">
+        <h3>Hapus ceklis pasang/lepas tali?</h3>
+        <p style="font-size:13px;color:var(--ink-soft);">Tindakan ini tidak bisa dibatalkan.</p>
+        <div class="modal-actions">
+          <button class="btn btn-ghost" onclick="closeModal()">Batal</button>
+          <button class="btn btn-rust" onclick="confirmDeleteTali('${id}')">Ya, hapus</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+async function confirmDeleteTali(id){
+  TALI.records = TALI.records.filter(x=>x.id!==id);
+  await saveTaliData();
+  closeModal();
+  toast('Ceklis pasang/lepas tali dihapus.');
+  // Sama seperti submit: kalau sedang di halaman input ceklis, cukup update tabelnya saja
+  // supaya form tanggal/kapal/jenis yang sedang dipilih tidak ikut ter-reset.
+  if(CURRENT_VIEW==='tali-input' && document.getElementById('tali-ceklis-table-card')){
+    taliRefreshCeklisTable();
+  }else{
+    render();
+  }
+}
+function taliKelolaPetugas(){
+  if(!CURRENT_USER.isAdmin){
+    toast('Hanya Admin yang dapat mengubah daftar petugas & nominal pasang lepas tali.');
+    return;
+  }
+  document.getElementById('modal-root').innerHTML = `
+    <div class="modal-overlay">
+      <div class="modal-box" style="max-width:460px;">
+        <h3>⚙️ Kelola Petugas &amp; Nominal</h3>
+        <div class="form-field full">
+          <label>Dana total per kedatangan/keberangkatan (Rp) — dibagi rata sesuai jumlah petugas yang ikut</label>
+          <input type="number" id="tali-set-nominal" value="${TALI.nominalPerKegiatan}">
+        </div>
+        <div class="form-field full" style="margin-top:10px;">
+          <label>Daftar petugas pasang/lepas tali</label>
+          <div id="tali-petugas-list" style="display:flex;flex-direction:column;gap:6px;max-height:220px;overflow:auto;">
+            ${TALI.petugas.map((nama,i)=>`
+              <div style="display:flex;align-items:center;gap:8px;">
+                <input type="text" class="tali-set-nama" data-idx="${i}" value="${escapeHtml(nama)}" style="flex:1;">
+                <button type="button" class="btn btn-sm btn-rust" onclick="this.parentElement.remove()">Hapus</button>
+              </div>`).join('')}
+          </div>
+          <button type="button" class="btn btn-ghost btn-sm" style="margin-top:8px;" onclick="taliTambahBarisPetugas()">+ Tambah petugas</button>
+        </div>
+        <div class="modal-actions">
+          <button class="btn btn-ghost" onclick="closeModal()">Batal</button>
+          <button class="btn btn-gold" onclick="taliSimpanPetugasNominal()">Simpan</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+function taliTambahBarisPetugas(){
+  const wrap = document.getElementById('tali-petugas-list');
+  const row = document.createElement('div');
+  row.style.cssText = 'display:flex;align-items:center;gap:8px;';
+  row.innerHTML = `<input type="text" class="tali-set-nama" value="" placeholder="Nama petugas baru" style="flex:1;">
+    <button type="button" class="btn btn-sm btn-rust" onclick="this.parentElement.remove()">Hapus</button>`;
+  wrap.appendChild(row);
+  row.querySelector('input').focus();
+}
+async function taliSimpanPetugasNominal(){
+  if(!CURRENT_USER.isAdmin){
+    toast('Hanya Admin yang dapat mengubah daftar petugas & nominal pasang lepas tali.');
+    return;
+  }
+  const nominal = Number(document.getElementById('tali-set-nominal').value || 0);
+  const nama = Array.from(document.querySelectorAll('.tali-set-nama')).map(el=>el.value.trim()).filter(Boolean);
+  if(nominal<=0){ toast('Dana total per kegiatan wajib diisi.'); return; }
+  if(nama.length===0){ toast('Daftar petugas tidak boleh kosong.'); return; }
+  // Buang duplikat nama sambil menjaga urutan input.
+  TALI.petugas = Array.from(new Set(nama));
+  TALI.nominalPerKegiatan = nominal;
+  await saveTaliData();
+  closeModal();
+  toast('Daftar petugas & nominal pasang lepas tali disimpan.');
+  render();
+}
+/* ===== Rekap Bulanan Pasang Lepas Tali (rekap dana per petugas) =====
+   Dana per kegiatan (default Rp150.000) itu TOTAL yang dibagi RATA sesuai jumlah petugas yang
+   ikut pada kegiatan itu -- kalau 8 orang hadir dibagi 8, kalau cuma 3 orang dibagi 3, dst. Jadi
+   bagian tiap orang bisa beda-beda tiap kegiatan tergantung berapa banyak yang ikut hari itu. */
+function taliBagianPerOrang(r){
+  const jumlahIkut = (r.ikut||[]).length || 1;
+  return TALI.nominalPerKegiatan / jumlahIkut;
+}
+/* Kelompokkan record berdasarkan kegiatan yang sama (tanggal+kapal+jenis). Ini jaga-jaga untuk
+   data LAMA yang kadung tersimpan terpisah (mis. 3 orang tapi masing-masing disimpan sebagai
+   record sendiri-sendiri, 1 orang per record) -- kalau tidak dikelompokkan dulu, dana akan
+   terhitung penuh Rp150.000 per record/per orang, bukan dibagi rata sesuai jumlah yang ikut
+   kegiatan itu. submitTali() sekarang sudah menggabungkan otomatis untuk input baru, fungsi ini
+   memastikan rekap tetap benar walau ada data lama yang belum sempat digabung. */
+function taliKegiatanGrouped(list){
+  const map = new Map();
+  list.forEach(r=>{
+    const key = (r.tanggal||'')+'|'+(r.kapal||'').trim()+'|'+(r.jenis||'');
+    if(!map.has(key)){
+      map.set(key, { tanggal:r.tanggal, kapal:r.kapal, jenis:r.jenis, ikut:new Set(), recordIds:[] });
+    }
+    const g = map.get(key);
+    (r.ikut||[]).forEach(n=>g.ikut.add(n));
+    g.recordIds.push(r.id);
+  });
+  return Array.from(map.values()).map(g=>({
+    tanggal:g.tanggal, kapal:g.kapal, jenis:g.jenis,
+    ikut: Array.from(g.ikut), recordIds:g.recordIds
+  }));
+}
+function renderTaliRekap(c, actions){
+  const months = taliMonthsSorted();
+  if(!months.includes(TALI_SELECTED_BULAN)) TALI_SELECTED_BULAN = months[0];
+  const list = taliKegiatanGrouped(taliRecordsForMonth(TALI_SELECTED_BULAN));
+  const rekap = TALI.petugas.map(nama=>{
+    const ikutList = list.filter(r=>(r.ikut||[]).includes(nama));
+    const jumlahIkut = ikutList.length;
+    const total = ikutList.reduce((s,r)=> s + taliBagianPerOrang(r), 0);
+    const statusAmplop = taliStatusTerima(TALI_SELECTED_BULAN, nama);
+    return { nama, jumlahIkut, total, statusAmplop };
+  });
+  const grandTotal = list.reduce((s,r)=> s + TALI.nominalPerKegiatan, 0);
+  const kedatangan = list.filter(r=>r.jenis!=='keberangkatan').length;
+  const keberangkatan = list.filter(r=>r.jenis==='keberangkatan').length;
+  actions.innerHTML = `
+    <select id="tali-rekap-month-select" onchange="TALI_SELECTED_BULAN=this.value; render()">
+      ${months.map(m=>`<option value="${m}" ${TALI_SELECTED_BULAN===m?'selected':''}>${monthLabel(m)}</option>`).join('')}
+    </select>
+    <button class="btn btn-gold btn-sm" style="margin-left:8px;" onclick="taliBukaCetakQrModal()">🖨️ Cetak QR Semua</button>
+  `;
+  c.innerHTML = `
+    <div class="stat-grid">
+      <div class="stat-card">
+        <div class="stat-label">Total Kegiatan Bulan Ini</div>
+        <div class="stat-value">${list.length}</div>
+      </div>
+      <div class="stat-card teal">
+        <div class="stat-label">Kedatangan / Keberangkatan</div>
+        <div class="stat-value" style="font-size:20px;">${kedatangan} / ${keberangkatan}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Dana per Kegiatan (dibagi rata)</div>
+        <div class="stat-value" style="font-size:20px;">${fmtRp(TALI.nominalPerKegiatan)}</div>
+      </div>
+      <div class="stat-card gold">
+        <div class="stat-label">Total Dana Pasang Lepas Tali</div>
+        <div class="stat-value">${fmtRp(grandTotal)}</div>
+      </div>
+    </div>
+    <div class="card" style="padding:0;overflow:auto;">
+      <p class="card-title" style="margin:16px 16px 4px;">Rekap Pembagian Dana — ${monthLabel(TALI_SELECTED_BULAN)}</p>
+      <table class="ledger">
+        <thead><tr>
+          <th>Nama Petugas</th><th class="num">Jumlah Ikut Pasang/Lepas Tali</th><th class="num">Total Pendapatan</th><th>QR Slip</th><th>Status Amplop</th><th></th>
+        </tr></thead>
+        <tbody>
+          ${rekap.map(r=>`<tr>
+            <td class="name-cell">${escapeHtml(r.nama)}</td>
+            <td class="num">${r.jumlahIkut}x</td>
+            <td class="num" style="font-weight:700;">${fmtRp(r.total)}</td>
+            <td><button class="btn btn-ghost btn-sm" onclick="taliCetakQrSatu('${escapeHtml(r.nama).replace(/'/g,"\\'")}')">🖨️ Cetak QR</button></td>
+            <td>${r.statusAmplop && r.statusAmplop.diterima
+                ? `<span style="color:var(--green,#3F7A4D);font-weight:600;font-size:12px;">✅ Diterima ${fmtDate((r.statusAmplop.waktu||'').slice(0,10))}</span>
+                   <button class="btn btn-ghost btn-sm" style="margin-left:6px;padding:2px 8px;font-size:11px;" title="Lepas kunci perangkat supaya QR bisa discan ulang (mis. HP petugas ganti)" onclick="taliKonfirmasiResetAmplop('${TALI_SELECTED_BULAN}', '${escapeHtml(r.nama).replace(/'/g,"\\'")}')">Reset</button>`
+                : `<span style="color:var(--ink-soft);font-size:12px;">⏳ Belum discan</span>`}</td>
+            <td class="num"><button class="btn btn-ghost btn-sm" onclick="taliBukaSlip('${escapeHtml(r.nama).replace(/'/g,"\\'")}')">Lihat Slip</button></td>
+          </tr>`).join('')}
+        </tbody>
+        <tfoot><tr style="font-weight:700;background:var(--paper-soft,#f6f3ee);">
+          <td>Total Keseluruhan</td><td class="num">${list.length}x kegiatan</td><td class="num">${fmtRp(grandTotal)}</td><td colspan="3"></td>
+        </tr></tfoot>
+      </table>
+      ${list.length===0 ? `<div class="empty-state"><p>Belum ada ceklis pasang/lepas tali pada bulan ini.</p></div>` : ''}
+    </div>
+    <div class="card" style="padding:0;overflow:auto;">
+      <p class="card-title" style="margin:16px 16px 4px;">Rincian per kegiatan — ${monthLabel(TALI_SELECTED_BULAN)}</p>
+      <table class="ledger">
+        <thead><tr>
+          <th>Tanggal</th><th>Kapal</th><th>Trip</th><th class="num">Jumlah Petugas Ikut</th><th class="num">Bagian per Orang</th><th>Petugas yang Ikut</th>
+        </tr></thead>
+        <tbody>
+          ${list.map(r=>`<tr>
+            <td>${fmtDate(r.tanggal)}</td>
+            <td class="name-cell">${escapeHtml(r.kapal||'-')}</td>
+            <td>${taliJenisLabel(r.jenis)}</td>
+            <td class="num">${(r.ikut||[]).length}</td>
+            <td class="num">${fmtRp(taliBagianPerOrang(r))}</td>
+            <td class="name-cell">${(r.ikut||[]).map(n=>escapeHtml(n)).join(', ')||'-'}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+      ${list.length===0 ? `<div class="empty-state"><p>Belum ada rincian kegiatan pada bulan ini.</p></div>` : ''}
+    </div>
+    <div class="card" style="font-size:12px;color:var(--ink-soft);">
+      Contoh baca: dana ${fmtRp(TALI.nominalPerKegiatan)} per kedatangan/keberangkatan itu <b>total</b>, dibagi rata sesuai yang ikut hari itu — kalau 8 orang hadir, masing-masing dapat ${fmtRp(TALI.nominalPerKegiatan/8)}; kalau cuma 3 orang, masing-masing dapat ${fmtRp(TALI.nominalPerKegiatan/3)}; kalau 5 orang, masing-masing dapat ${fmtRp(TALI.nominalPerKegiatan/5)}. Jumlah Total Pendapatan tiap petugas di tabel atas adalah gabungan bagiannya dari semua kegiatan bulan ini (bisa beda-beda tiap kegiatan tergantung jumlah yang ikut). Rekap ini bersifat pencatatan internal untuk pembagian dana petugas tali kapal — belum otomatis tercatat sebagai pengeluaran di Laporan Bulanan Buku Kas Operasional.
+    </div>
+  `;
+}
+
+/* ===== Slip Gaji Bulanan per Petugas (rincian dari Rekap Pembagian Dana) =====
+   Menampilkan detail pendapatan SATU petugas untuk bulan terpilih, per kegiatan
+   (tanggal, kapal, trip, jumlah yang ikut, bagian dia dapat berapa), plus total di
+   bawah -- format ringkas ala slip gaji supaya petugas bisa cek sendiri asal
+   perhitungan dananya, bukan cuma angka total tanpa rincian. */
+function taliBukaSlip(nama){
+  const list = taliKegiatanGrouped(taliRecordsForMonth(TALI_SELECTED_BULAN));
+  const ikutList = list.filter(r=>(r.ikut||[]).includes(nama))
+    .slice().sort((a,b)=>(a.tanggal||'').localeCompare(b.tanggal||''));
+  const total = ikutList.reduce((s,r)=> s + taliBagianPerOrang(r), 0);
+  document.getElementById('modal-root').innerHTML = `
+    <div class="modal-overlay">
+      <div class="modal-box" style="max-width:560px;">
+        <p class="card-title" style="margin-bottom:2px;">Slip Pendapatan Pasang/Lepas Tali</p>
+        <p style="font-size:12px;color:var(--ink-soft);margin:0 0 14px;">${escapeHtml(nama)} — ${monthLabel(TALI_SELECTED_BULAN)}</p>
+        <div style="max-height:340px;overflow:auto;border:1px solid var(--line,#e2ddd2);border-radius:6px;">
+          <table class="ledger" style="margin:0;">
+            <thead><tr><th>Tanggal</th><th>Kapal</th><th>Trip</th><th class="num">Ikut</th><th class="num">Bagian</th></tr></thead>
+            <tbody>
+              ${ikutList.map(r=>`<tr>
+                <td>${fmtDate(r.tanggal)}</td>
+                <td class="name-cell">${escapeHtml(r.kapal||'-')}</td>
+                <td>${taliJenisLabel(r.jenis)}</td>
+                <td class="num">${(r.ikut||[]).length} org</td>
+                <td class="num" style="font-weight:600;">${fmtRp(taliBagianPerOrang(r))}</td>
+              </tr>`).join('') || `<tr><td colspan="5" style="text-align:center;color:var(--ink-soft);padding:16px;">Tidak ada kegiatan diikuti bulan ini.</td></tr>`}
+            </tbody>
+            <tfoot><tr style="font-weight:700;background:var(--paper-soft,#f6f3ee);">
+              <td colspan="3">Total Pendapatan Bulan Ini</td><td class="num">${ikutList.length}x</td><td class="num">${fmtRp(total)}</td>
+            </tr></tfoot>
+          </table>
+        </div>
+        <div class="modal-actions" style="margin-top:14px;">
+          <button class="btn btn-ghost" onclick="closeModal()">Tutup</button>
+          <button class="btn btn-green" onclick="taliCetakSlip('${escapeHtml(nama).replace(/'/g,"\\'")}')">Cetak Slip</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+/* Cetak slip di tab baru (pakai window.print bawaan browser) -- dibuat terpisah dari
+   pipeline PDF berita-acara di atas karena slip ini cuma rekap internal sederhana,
+   tidak perlu presisi cetak A4 multi-halaman seperti dokumen resmi lainnya. */
+function taliCetakSlip(nama){
+  const list = taliKegiatanGrouped(taliRecordsForMonth(TALI_SELECTED_BULAN));
+  const ikutList = list.filter(r=>(r.ikut||[]).includes(nama))
+    .slice().sort((a,b)=>(a.tanggal||'').localeCompare(b.tanggal||''));
+  const total = ikutList.reduce((s,r)=> s + taliBagianPerOrang(r), 0);
+  const w = window.open('', '_blank');
+  if(!w){ toast('Popup diblokir browser -- izinkan popup untuk mencetak slip.'); return; }
+  w.document.write(`
+    <title>Slip - ${escapeHtml(nama)} - ${monthLabel(TALI_SELECTED_BULAN)}</title>
+    <style>
+      body{font-family:Arial,Helvetica,sans-serif;padding:28px;color:#111;}
+      h2{margin:0 0 2px;font-size:16px;} p.sub{margin:0 0 16px;color:#555;font-size:12px;}
+      table{width:100%;border-collapse:collapse;font-size:12px;}
+      th,td{border:1px solid #999;padding:5px 8px;text-align:left;}
+      th{background:#f0f0f0;} td.num,th.num{text-align:right;}
+      tfoot td{font-weight:700;background:#f6f6f6;}
+    </style>
+      <h2>Slip Pendapatan Pasang/Lepas Tali Kapal</h2>
+      <p class="sub">${escapeHtml(nama)} — ${monthLabel(TALI_SELECTED_BULAN)}</p>
+      <table>
+        <thead><tr><th>Tanggal</th><th>Kapal</th><th>Trip</th><th class="num">Ikut</th><th class="num">Bagian</th></tr></thead>
+        <tbody>
+          ${ikutList.map(r=>`<tr>
+            <td>${fmtDate(r.tanggal)}</td><td>${escapeHtml(r.kapal||'-')}</td><td>${taliJenisLabel(r.jenis)}</td>
+            <td class="num">${(r.ikut||[]).length} org</td><td class="num">${fmtRp(taliBagianPerOrang(r))}</td>
+          </tr>`).join('')}
+        </tbody>
+        <tfoot><tr><td colspan="3">Total Pendapatan Bulan Ini</td><td class="num">${ikutList.length}x</td><td class="num">${fmtRp(total)}</td></tr></tfoot>
+      </table>
+  `);
+  w.document.close();
+  w.focus();
+  setTimeout(()=>w.print(), 300);
+}
+
+/* ======================= QR SLIP GAJI (Amplop Pasang/Lepas Tali) =======================
+   Tiap petugas dapat 1 QR unik per bulan. QR berisi tautan ke halaman ini sendiri dengan
+   parameter ?slip=1&nama=...&bulan=...&tok=... -- "tok" adalah hash (SHA-256, dipotong 16
+   karakter) dari nama+bulan+garam rahasia di bawah, supaya orang tidak bisa menebak/mengubah
+   nama di URL untuk melihat slip orang lain sembarangan. CATATAN JUJUR: ini BUKAN keamanan
+   tingkat bank -- siapa pun yang buka kode sumber halaman ini bisa melihat garamnya juga
+   (sama seperti proteksi "kosmetik" lain di sistem ini). Untuk kebutuhan internal pembagian
+   amplop gaji, ini sudah cukup mencegah salah buka/salah tebak secara tidak sengaja.
+   QR ini WAJIB dibuka dari alamat online sistem ini (bukan dari laptop/Live Server lokal),
+   supaya bisa discan dari HP petugas mana pun. */
+const QR_SLIP_SALT = 'pelni-kendari-tali-slip-v1';
+async function taliSlipToken(nama, bulan){
+  const hash = await sha256HexSafe(nama+'|'+bulan+'|'+QR_SLIP_SALT);
+  return hash.slice(0,16);
+}
+async function taliSlipUrl(nama, bulan){
+  const token = await taliSlipToken(nama, bulan);
+  const params = new URLSearchParams({ slip:'1', nama, bulan, tok: token });
+  const base = location.origin + location.pathname;
+  return base + '?' + params.toString();
+}
+/* Render 1 QR ke <img> data-URL memakai library qrcodejs yang sudah dimuat di halaman ini.
+   Dirender ke elemen tersembunyi dulu (bukan langsung ke jendela print baru), supaya jendela
+   print baru cukup berisi <img> statis -- tidak perlu memuat ulang script qrcodejs di sana. */
+function taliGenerateQrDataUrl(text, size){
+  return new Promise((resolve)=>{
+    const holder = document.createElement('div');
+    holder.style.cssText = 'position:fixed;left:-9999px;top:-9999px;';
+    document.body.appendChild(holder);
+    try{
+      new QRCode(holder, { text, width:size, height:size, correctLevel: QRCode.CorrectLevel.M });
+    }catch(e){
+      document.body.removeChild(holder);
+      resolve('');
+      return;
+    }
+    setTimeout(()=>{
+      const img = holder.querySelector('img');
+      const canvas = holder.querySelector('canvas');
+      let dataUrl = '';
+      if(img && img.src && img.src.startsWith('data:')) dataUrl = img.src;
+      else if(canvas) dataUrl = canvas.toDataURL('image/png');
+      document.body.removeChild(holder);
+      resolve(dataUrl);
+    }, 80);
+  });
+}
+/* Status "amplop sudah diterima" per bulan+nama -- diisi OTOMATIS oleh halaman slip publik
+   begitu petugas berhasil scan & membuka slipnya (lihat renderPublicSlip()). Admin TIDAK perlu
+   mencentang manual; fungsi ini juga aman dipanggil berkali-kali (tidak menimpa waktu pertama).
+   SEJAK PENGUNCI 1-PERANGKAT: field deviceId dipakai untuk mengunci slip ke perangkat PERTAMA
+   yang berhasil membukanya -- lihat taliGetDeviceId() & initPublicSlipIfNeeded(). */
+function taliStatusTerima(bulan, nama){
+  return (TALI.penerimaan && TALI.penerimaan[bulan] && TALI.penerimaan[bulan][nama]) || null;
+}
+async function taliTandaiDiterima(bulan, nama, deviceId){
+  if(!TALI.penerimaan || typeof TALI.penerimaan!=='object') TALI.penerimaan = {};
+  if(!TALI.penerimaan[bulan]) TALI.penerimaan[bulan] = {};
+  const existing = TALI.penerimaan[bulan][nama];
+  if(existing && existing.diterima) return; // sudah tercatat -- perangkat sudah dicek cocok SEBELUM fungsi ini dipanggil
+  TALI.penerimaan[bulan][nama] = { diterima:true, waktu:new Date().toISOString(), deviceId: deviceId || null };
+  await saveTaliData();
+}
+/* Admin bisa mereset status amplop seseorang (mis. HP petugas hilang/ganti device sah), supaya
+   slip yang sama bisa discan ulang dan dikunci ke perangkat BARU. Tidak menghasilkan QR baru --
+   QR/tautan lama tetap sama, cuma penguncinya yang dilepas. */
+async function taliResetStatusAmplop(bulan, nama){
+  if(!CURRENT_USER || !CURRENT_USER.isAdmin){ toast('Hanya Admin yang dapat mereset status amplop.'); return; }
+  if(TALI.penerimaan && TALI.penerimaan[bulan]) delete TALI.penerimaan[bulan][nama];
+  await saveTaliData();
+  closeModal();
+  toast('Status amplop '+nama+' direset -- QR yang sama bisa discan ulang dari perangkat baru.');
+  render();
+}
+function taliKonfirmasiResetAmplop(bulan, nama){
+  document.getElementById('modal-root').innerHTML = `
+    <div class="modal-overlay">
+      <div class="modal-box" style="max-width:420px;">
+        <h3>Reset status amplop ${escapeHtml(nama)}?</h3>
+        <p style="font-size:13px;color:var(--ink-soft);line-height:1.6;">
+          Kunci perangkat untuk slip ${escapeHtml(nama)} bulan ${monthLabel(bulan)} akan dilepas,
+          sehingga QR yang sama bisa discan ulang dan terkunci ke perangkat yang baru.
+          Gunakan ini hanya kalau HP petugas memang berganti/hilang.
+        </p>
+        <div class="modal-actions">
+          <button class="btn btn-ghost" onclick="closeModal()">Batal</button>
+          <button class="btn btn-rust" onclick="taliResetStatusAmplop('${bulan}', '${escapeHtml(nama).replace(/'/g,"\\'")}')">Ya, reset</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+/* ID perangkat yang tersimpan permanen di localStorage browser ini (tidak terkait login).
+   Dipakai HANYA untuk mengunci 1 slip gaji ke 1 perangkat pertama yang membukanya -- supaya
+   kalau ada orang lain coba scan/buka ulang QR yang sama dari HP lain, sistem tahu itu BUKAN
+   perangkat yang sama dan menampilkan peringatan, bukan slipnya. */
+function taliGetDeviceId(){
+  const KEY = 'pelni_qr_device_id';
+  let id = null;
+  try{ id = localStorage.getItem(KEY); }catch(e){}
+  if(!id){
+    id = 'dev-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,10)+'-'+Math.random().toString(36).slice(2,10);
+    try{ localStorage.setItem(KEY, id); }catch(e){ /* mode privat/incognito -- kunci tetap jalan per-sesi saja */ }
+  }
+  return id;
+}
+
+
+/* ===== Modal pilih ukuran amplop, lalu cetak QR SEMUA petugas sekali kerja ===== */
+function taliBukaCetakQrModal(){
+  document.getElementById('modal-root').innerHTML = `
+    <div class="modal-overlay">
+      <div class="modal-box" style="max-width:440px;">
+        <h3>🖨️ Cetak QR Slip Gaji — ${monthLabel(TALI_SELECTED_BULAN)}</h3>
+        <p style="font-size:12.5px;color:var(--ink-soft);line-height:1.6;">
+          QR akan dibuat untuk seluruh ${TALI.petugas.length} petugas sekaligus, langsung masuk
+          ke satu halaman cetak (satu amplop = satu halaman/QR). Pilih ukuran amplop yang dipakai:
+        </p>
+        <div class="field">
+          <label>Ukuran Amplop</label>
+          <select id="tali-qr-ukuran" style="width:100%;padding:10px;border-radius:3px;border:1px solid var(--line,#ccc);">
+            <option value="90">Amplop No. 90 (90 × 140 mm)</option>
+            <option value="110">Amplop No. 110 (110 × 230 mm)</option>
+          </select>
+        </div>
+        <div class="modal-actions">
+          <button class="btn btn-ghost" onclick="closeModal()">Batal</button>
+          <button class="btn btn-gold" onclick="taliJalankanCetakQrSemua()">Buat &amp; Cetak QR</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+async function taliJalankanCetakQrSemua(){
+  const ukuran = document.getElementById('tali-qr-ukuran').value;
+  closeModal();
+  await taliCetakQrSemua(ukuran, TALI.petugas.slice());
+}
+/* Cetak QR untuk daftar nama tertentu (dipakai baik untuk "cetak semua" maupun cetak 1 orang
+   dari tombol per-baris di tabel). Semua QR digabung jadi SATU jendela print, tiap orang di
+   halaman/amplop terpisah (page-break), supaya admin cukup klik "Print" sekali untuk semuanya. */
+async function taliCetakQrSemua(ukuran, daftarNama){
+  const bulan = TALI_SELECTED_BULAN;
+  const daftar = (daftarNama && daftarNama.length) ? daftarNama : TALI.petugas.slice();
+  if(!daftar.length){ toast('Belum ada petugas untuk dicetak QR-nya.'); return; }
+  toast('Menyiapkan '+daftar.length+' QR — mohon tunggu sebentar…');
+  const dims = ukuran==='90' ? { w:90, h:140 } : { w:110, h:230 };
+  const qrPx = ukuran==='90' ? 240 : 280;
+  const qrMm = ukuran==='90' ? '55mm' : '48mm';
+  const items = [];
+  for(const nama of daftar){
+    const url = await taliSlipUrl(nama, bulan);
+    const dataUrl = await taliGenerateQrDataUrl(url, qrPx);
+    items.push({ nama, dataUrl });
+  }
+  const w = window.open('', '_blank');
+  if(!w){ toast('Popup diblokir browser — izinkan popup untuk mencetak QR.'); return; }
+  w.document.write(`
+    <title>Cetak QR Slip Gaji — ${monthLabel(bulan)}</title>
+    <style>
+      @page{ size:${dims.w}mm ${dims.h}mm; margin:0; }
+      *{box-sizing:border-box;}
+      body{margin:0;font-family:Arial,Helvetica,sans-serif;color:#111;}
+      .env{
+        width:${dims.w}mm;height:${dims.h}mm;page-break-after:always;
+        display:flex;flex-direction:column;align-items:center;justify-content:center;
+        padding:5mm;text-align:center;
+      }
+      .env:last-child{ page-break-after:auto; }
+      .env img{ width:${qrMm}; height:${qrMm}; }
+      .env .nama{ font-weight:700; font-size:${ukuran==='90'?'11px':'13px'}; margin-top:3mm; }
+      .env .bln{ font-size:9px; color:#555; margin-top:1mm; }
+      .env .cap{ font-size:8px; color:#777; margin-top:2mm; }
+    </style>
+    ${items.map(it=>`
+      <div class="env">
+        <img src="${it.dataUrl}">
+        <div class="nama">${escapeHtml(it.nama)}</div>
+        <div class="bln">Slip Gaji — ${monthLabel(bulan)}</div>
+        <div class="cap">Scan untuk lihat slip gaji Anda</div>
+      </div>
+    `).join('')}
+  `);
+  w.document.close();
+  w.focus();
+  setTimeout(()=>w.print(), 500);
+}
+/* Tombol "QR" per-baris di tabel Rekap -- cetak 1 amplop saja, tetap tanya ukuran dulu. */
+function taliCetakQrSatu(nama){
+  document.getElementById('modal-root').innerHTML = `
+    <div class="modal-overlay">
+      <div class="modal-box" style="max-width:400px;">
+        <h3>🖨️ Cetak QR — ${escapeHtml(nama)}</h3>
+        <div class="field">
+          <label>Ukuran Amplop</label>
+          <select id="tali-qr-ukuran-satu" style="width:100%;padding:10px;border-radius:3px;border:1px solid var(--line,#ccc);">
+            <option value="90">Amplop No. 90 (90 × 140 mm)</option>
+            <option value="110">Amplop No. 110 (110 × 230 mm)</option>
+          </select>
+        </div>
+        <div class="modal-actions">
+          <button class="btn btn-ghost" onclick="closeModal()">Batal</button>
+          <button class="btn btn-gold" onclick="taliCetakQrSatuJalankan('${escapeHtml(nama).replace(/'/g,"\\'")}')">Cetak</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+async function taliCetakQrSatuJalankan(nama){
+  const ukuran = document.getElementById('tali-qr-ukuran-satu').value;
+  closeModal();
+  await taliCetakQrSemua(ukuran, [nama]);
+}
+
+/* ===== Halaman Slip Gaji Publik (dibuka dari HP petugas via scan QR) =====
+   Tidak memerlukan login sama sekali. Diakses lewat URL ?slip=1&nama=...&bulan=...&tok=...
+   Begitu berhasil dibuka PERTAMA KALI, otomatis: (1) menandai amplop bulan itu "diterima", dan
+   (2) MENGUNCI slip tersebut ke perangkat itu (lihat taliGetDeviceId()). Kalau perangkat LAIN
+   mencoba membuka QR/tautan yang sama sesudahnya, yang tampil BUKAN slipnya melainkan layar
+   peringatan STOP -- supaya slip gaji satu orang tidak bisa diintip dari HP orang lain. */
+function taliParsePublicSlipParams(){
+  const params = new URLSearchParams(location.search);
+  if(params.get('slip')!=='1') return null;
+  return { nama: params.get('nama')||'', bulan: params.get('bulan')||'', tok: params.get('tok')||'' };
+}
+async function initPublicSlipIfNeeded(){
+  const q = taliParsePublicSlipParams();
+  if(!q) return false;
+  document.body.classList.add('public-slip-mode');
+  const loginEl = document.getElementById('login-screen');
+  const shellEl = document.getElementById('app-shell');
+  if(loginEl) loginEl.classList.add('hidden');
+  if(shellEl) shellEl.classList.add('hidden');
+  const screen = document.getElementById('public-slip-screen');
+  screen.classList.remove('hidden');
+  screen.innerHTML = `<div class="pub-slip-card"><p class="pub-slip-eyebrow">SLIP GAJI</p><p>Memuat slip…</p></div>`;
+  try{
+    if(!q.nama || !q.bulan || !q.tok){
+      screen.innerHTML = `<div class="pub-slip-card"><p class="pub-slip-eyebrow">SLIP GAJI</p><h2>Tautan tidak lengkap</h2><p>Tautan QR ini tidak berisi data yang diperlukan. Hubungi Admin untuk mendapatkan QR yang benar.</p></div>`;
+      return true;
+    }
+    const expectedTok = await taliSlipToken(q.nama, q.bulan);
+    if(q.tok !== expectedTok){
+      screen.innerHTML = `<div class="pub-slip-card"><p class="pub-slip-eyebrow">SLIP GAJI</p><h2>Tautan tidak valid</h2><p>QR/tautan ini tidak dikenali atau sudah tidak berlaku. Hubungi Admin untuk mendapatkan QR yang benar.</p></div>`;
+      return true;
+    }
+    await loadTaliData();
+    const deviceId = taliGetDeviceId();
+    const existing = taliStatusTerima(q.bulan, q.nama);
+    const sudahDikunciPerangkatLain = !!(existing && existing.diterima && existing.deviceId && existing.deviceId !== deviceId);
+    if(sudahDikunciPerangkatLain){
+      renderPublicSlipBlocked();
+      return true;
+    }
+    await renderPublicSlip(q.nama, q.bulan, deviceId);
+  }catch(e){
+    screen.innerHTML = `<div class="pub-slip-card"><p class="pub-slip-eyebrow">SLIP GAJI</p><h2>Gagal memuat slip</h2><p>${escapeHtml(e && e.message ? e.message : 'Terjadi kesalahan tidak terduga.')}</p></div>`;
+  }
+  return true;
+}
+/* Layar peringatan yang tampil kalau QR/tautan slip seseorang dibuka dari PERANGKAT LAIN
+   (bukan perangkat yang pertama kali mengunci slip itu). Sengaja TIDAK menampilkan data slip
+   apa pun -- nama, tanggal, kapal, atau angka pendapatan sama sekali tidak dirender di sini. */
+function renderPublicSlipBlocked(){
+  const screen = document.getElementById('public-slip-screen');
+  screen.innerHTML = `
+    <div class="pub-slip-card pub-slip-blocked">
+      <div class="pub-slip-stop-icon">🛑</div>
+      <h2 class="pub-slip-stop-title">STOP !</h2>
+      <p class="pub-slip-blocked-text">
+        Demi Menjaga Keamanan dan Kenyamanan Bersama<br>
+        Kamu Tidak Boleh Lihat Slip Pendapatan Orang Lain Ya.
+      </p>
+      <p class="pub-slip-blocked-sub">Semangat Kerjanya. 💪</p>
+    </div>
+  `;
+}
+async function renderPublicSlip(nama, bulan, deviceId){
+  const screen = document.getElementById('public-slip-screen');
+  const list = taliKegiatanGrouped(taliRecordsForMonth(bulan));
+  const ikutList = list.filter(r=>(r.ikut||[]).includes(nama))
+    .slice().sort((a,b)=>(a.tanggal||'').localeCompare(b.tanggal||''));
+  const total = ikutList.reduce((s,r)=> s + taliBagianPerOrang(r), 0);
+  const statusSebelum = taliStatusTerima(bulan, nama); // cek SEBELUM ditandai, untuk pesan yang tepat
+  screen.innerHTML = `
+    <div class="pub-slip-card">
+      <p class="pub-slip-eyebrow">PT PELNI (PERSERO) CABANG KENDARI</p>
+      <h2>Slip Pendapatan Pasang/Lepas Tali</h2>
+      <p style="margin:0;">${escapeHtml(nama)} — ${monthLabel(bulan)}</p>
+      <div class="pub-slip-status ok" id="pub-slip-status-badge">
+        ✅ ${statusSebelum && statusSebelum.diterima ? 'Amplop ini sudah tercatat diterima sebelumnya.' : 'Amplop ini baru saja tercatat diterima.'}
+      </div>
+      <table class="pub-slip-table">
+        <thead><tr><th>Tanggal</th><th>Kapal</th><th>Trip</th><th class="num">Ikut</th><th class="num">Bagian</th></tr></thead>
+        <tbody>
+          ${ikutList.map(r=>`<tr>
+            <td>${fmtDate(r.tanggal)}</td><td>${escapeHtml(r.kapal||'-')}</td><td>${taliJenisLabel(r.jenis)}</td>
+            <td class="num">${(r.ikut||[]).length} org</td><td class="num">${fmtRp(taliBagianPerOrang(r))}</td>
+          </tr>`).join('') || `<tr><td colspan="5" style="text-align:center;color:#748899;">Tidak ada kegiatan tercatat bulan ini.</td></tr>`}
+        </tbody>
+        <tfoot><tr><td colspan="3">Total Pendapatan Bulan Ini</td><td class="num">${ikutList.length}x</td><td class="num">${fmtRp(total)}</td></tr></tfoot>
+      </table>
+      <div class="pub-slip-footer">
+        Slip ini otomatis ditampilkan lewat QR pada amplop Anda, dan terkunci khusus untuk perangkat
+        ini saja. Kalau ada selisih perhitungan, segera hubungi Admin Operasional. Halaman ini
+        tidak memerlukan login.
+      </div>
+    </div>
+  `;
+  // Tandai diterima + kunci ke perangkat ini SETELAH tampil (best-effort) -- kalau gagal simpan
+  // (mis. sedang offline), slip tetap tampil normal, cuma status "diterima" belum sempat tercatat.
+  try{ await taliTandaiDiterima(bulan, nama, deviceId); }catch(e){ /* diamkan, slip sudah terlanjur tampil */ }
+}
+
 /* ======================= ADMIN AI CHAT (mengambang) =======================
    Chat ini HANYA muncul untuk akun dengan isAdmin=true. Riwayat percakapan
    disimpan per-admin (kunci berbeda tiap NRP) di tabel app_storage yang sama
@@ -8686,14 +9872,25 @@ const INIT_DATA_LOADED = Promise.all([
   loadKasKeaganData(),
   loadNotaDinasData(),
   loadPnbpData(),
-  loadDokumenKapalData()
+  loadDokumenKapalData(),
+  loadTaliData()
 ]);
+INIT_DATA_LOADED.then(initRealtimeSync);
+
+// PENTING: cek dulu apakah halaman ini dibuka lewat scan QR slip gaji (?slip=1&...). Kalau iya,
+// langsung tampilkan slip publik dan JANGAN lanjut ke alur login/sesi normal sama sekali --
+// dicek paling awal supaya tidak sempat "kelihatan" login screen sekilas sebelum ditutupi.
+initPublicSlipIfNeeded();
 
 // Kalau halaman di-refresh/reload sementara ada sesi yang masih berlaku (tersimpan di sessionStorage
 // tab ini), langsung pulihkan login & menu yang terakhir dibuka -- tidak perlu login ulang dan tidak
 // kembali ke Dashboard, tetap di menu yang sama. Sesi kedaluwarsa mengikuti aturan idle-timeout yang sama
 // (20 menit) supaya konsisten dengan auto-logout yang sudah ada.
 (async function restoreSessionIfAny(){
+  // Kalau halaman sedang menampilkan slip publik hasil scan QR (mis. admin sendiri yang membuka
+  // tautan QR di HP/laptop yang kebetulan masih ada sesi login tersimpan), JANGAN timpa dengan
+  // sesi admin -- biarkan slip publik yang tampil.
+  if(taliParsePublicSlipParams()){ return; }
   const saved = readSessionState();
   if(!saved || !saved.nrp){ return; }
   if(Date.now() - (saved.ts || 0) > IDLE_TIMEOUT_MS){
