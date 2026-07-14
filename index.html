@@ -649,7 +649,7 @@ table.ledger tr:hover td{background:#FBFAF5;}
         <div class="nav-group nav-subgroup" data-module="dokumenKapal" style="display:none;">
           <div class="nav-item" data-view="dk-scan" onclick="goto('dk-scan')"><span class="nav-dot"></span>Pantau Otomatis</div>
           <div class="nav-item" data-view="dk-folder" onclick="goto('dk-folder')"><span class="nav-dot"></span>Folder per Kapal</div>
-          <div class="nav-item" data-view="dk-riwayat" onclick="goto('dk-riwayat')"><span class="nav-dot"></span>Semua Dokumen</div>
+          <div class="nav-item" data-view="dk-riwayat" onclick="DK_RIWAYAT_FILTER.kapal='all'; goto('dk-riwayat')"><span class="nav-dot"></span>Semua Dokumen</div>
         </div>
       </div>
 
@@ -1539,14 +1539,36 @@ async function doLogin(){
     errEl.textContent = 'Terlalu banyak percobaan login gagal. Coba lagi dalam '+waitSec+' detik.';
     return;
   }
-  await loadData();
-  await loadKunjunganData();
-  await loadKasKeaganData();
-  await loadNotaDinasData();
-  await loadPnbpData();
-  await loadDokumenKapalData();
   const nrp = document.getElementById('login-nrp').value.trim();
   if(!nrp){ errEl.textContent='NRP wajib diisi.'; return; }
+
+  // Kunci tombol Masuk selama proses memuat data -- mencegah pengguna sempat mengklik apa pun
+  // (mis. langsung buka menu & input data) SEBELUM semua modul selesai dimuat dari server.
+  // Tanpa ini, ada celah waktu singkat di mana data yang baru diketik bisa "tertimpa" oleh
+  // data lama yang baru selesai dimuat belakangan -- inilah penyebab "input kadang tidak
+  // tersimpan, harus refresh dulu" yang dilaporkan.
+  const btnMasuk = document.querySelector('#login-screen .btn-primary');
+  const teksAsli = btnMasuk ? btnMasuk.textContent : '';
+  if(btnMasuk){ btnMasuk.disabled = true; btnMasuk.textContent = 'Memuat data…'; }
+
+  try{
+    // WAJIB sama persis dengan daftar di INIT_DATA_LOADED supaya tidak ada modul yang
+    // "kelewatan" dimuat sebelum pengguna mulai berinteraksi.
+    await Promise.all([
+      loadData(),
+      loadKunjunganData(),
+      loadPaspelData(),
+      loadMissKeaganData(),
+      loadTallyData(),
+      loadKasKeaganData(),
+      loadNotaDinasData(),
+      loadPnbpData(),
+      loadDokumenKapalData(),
+    ]);
+  } finally {
+    if(btnMasuk){ btnMasuk.disabled = false; btnMasuk.textContent = teksAsli; }
+  }
+
   const u = DATA.settings.users.find(x=>x.nrp===nrp);
   if(!u){
     errEl.textContent='NRP tidak terdaftar. Hubungi Admin.';
@@ -7476,6 +7498,41 @@ function dkApiBase(){ return (DOKUMEN_KAPAL.config && DOKUMEN_KAPAL.config.apiBa
 function dkApiKey(){ return (DOKUMEN_KAPAL.config && DOKUMEN_KAPAL.config.apiKey) || ''; }
 
 /**
+ * Pembungkus fetch() terpusat untuk semua panggilan ke backend dokumen-kapal-service.
+ * - Selalu menyertakan header x-api-key.
+ * - Menyertakan header "ngrok-skip-browser-warning": kalau backend diakses lewat tunnel
+ *   ngrok gratis, browser biasanya disodori halaman peringatan HTML dulu ("You are about
+ *   to visit...") alih-alih langsung ke API-nya -- ini bikin response gagal di-parse
+ *   sebagai JSON dan terasa seperti "data tidak muncul" padahal sebenarnya kena halaman
+ *   peringatan itu. Header ini melewati halaman peringatan tersebut.
+ * - Kalau responsnya ternyata BUKAN JSON (mis. halaman HTML dari ngrok/hosting lain),
+ *   melempar pesan error yang jelas -- bukan error teknis membingungkan seperti
+ *   "Unexpected token '<'".
+ */
+async function dkFetch(path, options){
+  options = options || {};
+  const headers = Object.assign(
+    { 'x-api-key': dkApiKey(), 'ngrok-skip-browser-warning': 'true' },
+    options.headers || {}
+  );
+  let res;
+  try{
+    res = await fetch(dkApiBase()+path, Object.assign({}, options, { headers }));
+  }catch(networkErr){
+    throw new Error('Tidak bisa menjangkau service backend di '+dkApiBase()+'. Pastikan service sedang berjalan dan alamatnya benar.');
+  }
+  let json;
+  try{
+    json = await res.json();
+  }catch(parseErr){
+    throw new Error('Backend merespons dengan format tak terduga (bukan JSON) -- kemungkinan alamat service salah, atau (kalau pakai ngrok) tertahan halaman peringatan ngrok. Coba buka alamat service-nya langsung di tab browser baru untuk cek.');
+  }
+  if(res.status===401) throw new Error('API Key salah. Samakan dengan API_SECRET_KEY di file .env backend.');
+  if(!res.ok || json.error) throw new Error(json.error || 'Terjadi kesalahan pada backend.');
+  return json;
+}
+
+/**
  * PENTING: dokumen yang disimpan backend (tabel dokumen_kapal di Supabase, lewat service
  * dokumen-kapal-service/) TIDAK otomatis tersinkron ke DOKUMEN_KAPAL.records (yang cuma
  * menyimpan pengaturan koneksi). Supaya "Folder per Kapal" & "Semua Dokumen" selalu menampilkan
@@ -7489,9 +7546,7 @@ let DK_LIVE_ERROR = '';
 async function dkFetchLiveDocs(){
   DK_LIVE_LOADING = true; DK_LIVE_ERROR = '';
   try{
-    const res = await fetch(dkApiBase()+'/dokumen', { headers: { 'x-api-key': dkApiKey() } });
-    const json = await res.json();
-    if(!res.ok || json.error) throw new Error(json.error || 'Gagal memuat data dokumen.');
+    const json = await dkFetch('/dokumen', {});
     // Normalisasi nama field dari backend (snake_case) ke camelCase yang dipakai tampilan ini.
     DK_LIVE_DOCS = (json.data||[]).map(row=>({
       id: row.id,
@@ -7586,9 +7641,7 @@ async function dkRefreshWatchlist(){
   const box = document.getElementById('dk-watchlist-list');
   if(!box) return;
   try{
-    const res = await fetch(dkApiBase()+'/watchlist', { headers: { 'x-api-key': dkApiKey() } });
-    const json = await res.json();
-    if(!res.ok || json.error) throw new Error(json.error || 'Gagal memuat daftar pantauan.');
+    const json = await dkFetch('/watchlist', {});
     const list = json.data || [];
     if(list.length===0){
       box.innerHTML = `<p style="margin:0;">Belum ada link yang dipantau. Tambahkan lewat form di atas.</p>`;
@@ -7629,21 +7682,11 @@ async function dkTambahWatchlist(){
   btn.disabled = true;
   statusEl.textContent = 'Menambahkan & mengambil dokumen pertama kali… (bisa 10–30 detik)';
   try{
-    let res;
-    try{
-      res = await fetch(dkApiBase()+'/watchlist', {
-        method: 'POST',
-        headers: { 'Content-Type':'application/json', 'x-api-key': dkApiKey() },
-        body: JSON.stringify({ url, autoEmailTo: autoEmailTo || null, createdBy: CURRENT_USER.name })
-      });
-    }catch(networkErr){
-      throw new Error('Tidak bisa menjangkau service backend di '+dkApiBase()+'. Pastikan service sudah dijalankan (npm start).');
-    }
-    let json;
-    try{ json = await res.json(); }
-    catch(parseErr){ throw new Error('Backend merespons dengan format tak terduga. Cek log terminal backend.'); }
-    if(res.status===401) throw new Error('API Key salah. Samakan dengan API_SECRET_KEY di file .env backend.');
-    if(!res.ok || json.error) throw new Error(json.error || 'Gagal menambahkan pantauan.');
+    const json = await dkFetch('/watchlist', {
+      method: 'POST',
+      headers: { 'Content-Type':'application/json' },
+      body: JSON.stringify({ url, autoEmailTo: autoEmailTo || null, createdBy: CURRENT_USER.name })
+    });
     statusEl.textContent = '';
     toast('Link ditambahkan ke pantauan otomatis. Dokumen pertama sedang diambil di latar belakang — muncul otomatis di "Folder per Kapal" sesaat lagi.');
     urlInput.value = ''; emailInput.value = '';
@@ -7659,12 +7702,7 @@ async function dkTambahWatchlist(){
 async function dkCekSekarang(id){
   toast('Mengecek link ini sekarang…');
   try{
-    const res = await fetch(dkApiBase()+'/watchlist/'+id+'/check-now', {
-      method: 'POST',
-      headers: { 'x-api-key': dkApiKey() }
-    });
-    const json = await res.json();
-    if(!res.ok || json.error) throw new Error(json.error || 'Gagal mengecek.');
+    const json = await dkFetch('/watchlist/'+id+'/check-now', { method: 'POST' });
     toast(`Selesai dicek: ${json.totalBerubah} dari ${json.totalDicek} dokumen baru/berubah.`);
     dkRefreshWatchlist();
   }catch(e){
@@ -7673,13 +7711,11 @@ async function dkCekSekarang(id){
 }
 async function dkToggleWatchlist(id, active){
   try{
-    const res = await fetch(dkApiBase()+'/watchlist/'+id, {
+    await dkFetch('/watchlist/'+id, {
       method: 'PATCH',
-      headers: { 'Content-Type':'application/json', 'x-api-key': dkApiKey() },
+      headers: { 'Content-Type':'application/json' },
       body: JSON.stringify({ active })
     });
-    const json = await res.json();
-    if(!res.ok || json.error) throw new Error(json.error || 'Gagal mengubah status.');
     toast(active ? 'Pemantauan dilanjutkan.' : 'Pemantauan dijeda.');
     dkRefreshWatchlist();
   }catch(e){
@@ -7702,9 +7738,7 @@ function dkHapusWatchlist(id){
 }
 async function dkKonfirmasiHapusWatchlist(id){
   try{
-    const res = await fetch(dkApiBase()+'/watchlist/'+id, { method:'DELETE', headers: { 'x-api-key': dkApiKey() } });
-    const json = await res.json();
-    if(!res.ok || json.error) throw new Error(json.error || 'Gagal menghapus.');
+    await dkFetch('/watchlist/'+id, { method:'DELETE' });
     closeModal();
     toast('Pemantauan dihentikan.');
     dkRefreshWatchlist();
@@ -7730,21 +7764,11 @@ async function dkTriggerScrape(){
   btn.disabled = true;
   statusEl.textContent = 'Sedang mengambil dokumen dari Inaportnet… (bisa memakan waktu 10–30 detik)';
   try{
-    let res;
-    try{
-      res = await fetch(dkApiBase()+'/scrape', {
-        method: 'POST',
-        headers: { 'Content-Type':'application/json', 'x-api-key': dkApiKey() },
-        body: JSON.stringify({ url })
-      });
-    }catch(networkErr){
-      throw new Error('Tidak bisa menjangkau service backend di '+dkApiBase()+'. Pastikan service sudah dijalankan (npm start) dan alamatnya benar di "Pengaturan koneksi ke service backend".');
-    }
-    let json;
-    try{ json = await res.json(); }
-    catch(parseErr){ throw new Error('Backend merespons dengan format tak terduga (bukan JSON). Cek log terminal backend untuk detail error.'); }
-    if(res.status===401) throw new Error('API Key salah. Samakan dengan API_SECRET_KEY di file .env backend.');
-    if(!res.ok || json.error) throw new Error(json.error || 'Gagal mengambil dokumen.');
+    const json = await dkFetch('/scrape', {
+      method: 'POST',
+      headers: { 'Content-Type':'application/json' },
+      body: JSON.stringify({ url })
+    });
     // Simpan/ganti metadata hasil scrape ke catatan lokal supaya langsung tampil di folder & riwayat.
     (json.data||[]).forEach(row=>{
       const existingIdx = DOKUMEN_KAPAL.records.findIndex(r=>r.nomorPkk===row.nomor_pkk && r.jenisDokumen===row.jenis_dokumen);
@@ -7912,21 +7936,11 @@ async function dkConfirmKirimEmail(groupKey){
   }
   btn.disabled = true; btn.textContent = 'Mengirim…';
   try{
-    let res;
-    try{
-      res = await fetch(dkApiBase()+'/kirim-email', {
-        method: 'POST',
-        headers: { 'Content-Type':'application/json', 'x-api-key': dkApiKey() },
-        body: JSON.stringify({ dokumenIds, emailTujuan: email })
-      });
-    }catch(networkErr){
-      throw new Error('Tidak bisa menjangkau service backend di '+dkApiBase()+'. Pastikan service sedang berjalan.');
-    }
-    let json;
-    try{ json = await res.json(); }
-    catch(parseErr){ throw new Error('Backend merespons dengan format tak terduga. Cek log terminal backend.'); }
-    if(res.status===401) throw new Error('API Key salah. Samakan dengan API_SECRET_KEY di file .env backend.');
-    if(!res.ok || json.error) throw new Error(json.error || 'Gagal mengirim email.');
+    await dkFetch('/kirim-email', {
+      method: 'POST',
+      headers: { 'Content-Type':'application/json' },
+      body: JSON.stringify({ dokumenIds, emailTujuan: email })
+    });
     items.forEach(r=>{ r.statusKirimEmail = true; r.dikirimKe = email; });
     closeModal();
     toast('Dokumen berhasil dikirim ke '+email+'.');
