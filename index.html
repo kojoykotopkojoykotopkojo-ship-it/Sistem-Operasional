@@ -9423,7 +9423,7 @@ function taliBukaCetakQrModal(){
   document.getElementById('modal-root').innerHTML = `
     <div class="modal-overlay">
       <div class="modal-box" style="max-width:440px;">
-        <h3>🖨️ Cetak QR Slip Gaji — ${monthLabel(TALI_SELECTED_BULAN)}</h3>
+        <h3>🖨️ Cetak QR Slip Pendapatan — ${monthLabel(TALI_SELECTED_BULAN)}</h3>
         <p style="font-size:12.5px;color:var(--ink-soft);line-height:1.6;">
           QR akan dibuat untuk seluruh ${TALI.petugas.length} petugas sekaligus, langsung masuk
           ke satu halaman cetak (satu amplop = satu halaman/QR). Pilih ukuran amplop yang dipakai:
@@ -9468,7 +9468,7 @@ async function taliCetakQrSemua(ukuran, daftarNama){
   const w = window.open('', '_blank');
   if(!w){ toast('Popup diblokir browser — izinkan popup untuk mencetak QR.'); return; }
   w.document.write(`
-    <title>Cetak QR Slip Gaji — ${monthLabel(bulan)}</title>
+    <title>Cetak QR Pasang Lepas Tali — ${monthLabel(bulan)}</title>
     <style>
       @page{ size:${dims.w}mm ${dims.h}mm; margin:0; }
       *{box-sizing:border-box;}
@@ -9488,8 +9488,8 @@ async function taliCetakQrSemua(ukuran, daftarNama){
       <div class="env">
         <img src="${it.dataUrl}">
         <div class="nama">${escapeHtml(it.nama)}</div>
-        <div class="bln">Slip Gaji — ${monthLabel(bulan)}</div>
-        <div class="cap">Scan untuk lihat slip gaji Anda</div>
+        <div class="bln">Slip Pendapatan — ${monthLabel(bulan)}</div>
+        <div class="cap">Scan untuk lihat slip Pendapatan Anda</div>
       </div>
     `).join('')}
   `);
@@ -9545,15 +9545,15 @@ async function initPublicSlipIfNeeded(){
   if(shellEl) shellEl.classList.add('hidden');
   const screen = document.getElementById('public-slip-screen');
   screen.classList.remove('hidden');
-  screen.innerHTML = `<div class="pub-slip-card"><p class="pub-slip-eyebrow">SLIP GAJI</p><p>Memuat slip…</p></div>`;
+  screen.innerHTML = `<div class="pub-slip-card"><p class="pub-slip-eyebrow">SLIP PENDAPATAN</p><p>Memuat slip…</p></div>`;
   try{
     if(!q.nama || !q.bulan || !q.tok){
-      screen.innerHTML = `<div class="pub-slip-card"><p class="pub-slip-eyebrow">SLIP GAJI</p><h2>Tautan tidak lengkap</h2><p>Tautan QR ini tidak berisi data yang diperlukan. Hubungi Admin untuk mendapatkan QR yang benar.</p></div>`;
+      screen.innerHTML = `<div class="pub-slip-card"><p class="pub-slip-eyebrow">SLIP PENDAPATAN</p><h2>Tautan tidak lengkap</h2><p>Tautan QR ini tidak berisi data yang diperlukan. Hubungi Admin untuk mendapatkan QR yang benar.</p></div>`;
       return true;
     }
     const expectedTok = await taliSlipToken(q.nama, q.bulan);
     if(q.tok !== expectedTok){
-      screen.innerHTML = `<div class="pub-slip-card"><p class="pub-slip-eyebrow">SLIP GAJI</p><h2>Tautan tidak valid</h2><p>QR/tautan ini tidak dikenali atau sudah tidak berlaku. Hubungi Admin untuk mendapatkan QR yang benar.</p></div>`;
+      screen.innerHTML = `<div class="pub-slip-card"><p class="pub-slip-eyebrow">SLIP PENDAPATAN</p><h2>Tautan tidak valid</h2><p>QR/tautan ini tidak dikenali atau sudah tidak berlaku. Hubungi Admin untuk mendapatkan QR yang benar.</p></div>`;
       return true;
     }
     await loadTaliData();
@@ -9566,7 +9566,7 @@ async function initPublicSlipIfNeeded(){
     }
     await renderPublicSlip(q.nama, q.bulan, deviceId);
   }catch(e){
-    screen.innerHTML = `<div class="pub-slip-card"><p class="pub-slip-eyebrow">SLIP GAJI</p><h2>Gagal memuat slip</h2><p>${escapeHtml(e && e.message ? e.message : 'Terjadi kesalahan tidak terduga.')}</p></div>`;
+    screen.innerHTML = `<div class="pub-slip-card"><p class="pub-slip-eyebrow">SLIP PENDAPATAN</p><h2>Gagal memuat slip</h2><p>${escapeHtml(e && e.message ? e.message : 'Terjadi kesalahan tidak terduga.')}</p></div>`;
   }
   return true;
 }
