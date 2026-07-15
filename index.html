@@ -7880,14 +7880,47 @@ function confirmDeleteNotaDinas(id){
 // email 1-klik lewat backend tersebut. File PDF TIDAK disimpan di app_storage (hanya
 // metadata + status pengiriman yang dicatat di sini).
 function uidDK(){ return 'dk-'+Date.now()+'-'+Math.random().toString(36).slice(2,8); }
+// ===== Auto-deteksi alamat backend lewat Supabase (tabel backend_status / heartbeat) =====
+// Tiap instance dokumen-kapal-service yang menyala melapor IP-nya sendiri ke tabel ini setiap
+// ±1 menit (lihat src/heartbeat.js di backend). Di sisi sini, kita baca tabel itu supaya TIDAK
+// perlu isi/ganti IP manual lagi -- termasuk kalau dipasang di komputer baru atau IP-nya berubah
+// setelah komputer mati-hidup lama. Kolom "Alamat service" manual di Pengaturan tetap dipakai
+// sebagai cadangan/override tambahan, digabung dengan hasil auto-deteksi ini.
+let DK_AUTO_URLS = []; // [{url, label, updated_at}], hasil deteksi PC yang aktif lapor baru-baru ini
+let DK_AUTO_DISCOVER_LOADING = false;
+async function dkAutoDiscoverUrls(){
+  if(!sbClient) return DK_AUTO_URLS;
+  DK_AUTO_DISCOVER_LOADING = true;
+  try{
+    // Anggap "sedang aktif" kalau lapor dalam 3 menit terakhir (heartbeat tiap 1 menit --
+    // kasih jeda toleransi untuk delay jaringan sesaat, bukan berarti benar-benar real-time).
+    const batasAktif = new Date(Date.now() - 3*60*1000).toISOString();
+    const { data, error } = await sbClient
+      .from('backend_status')
+      .select('ip,port,label,updated_at')
+      .gte('updated_at', batasAktif)
+      .order('updated_at', { ascending:false });
+    if(error){ console.warn('Gagal ambil daftar backend otomatis:', error.message); return DK_AUTO_URLS; }
+    DK_AUTO_URLS = (data||[]).map(r=>({ url: 'http://'+r.ip+':'+r.port, label: r.label || r.ip, updated_at: r.updated_at }));
+  }catch(e){
+    console.warn('Gagal ambil daftar backend otomatis:', e.message);
+  }finally{
+    DK_AUTO_DISCOVER_LOADING = false;
+  }
+  return DK_AUTO_URLS;
+}
 // Daftar alamat backend (bisa lebih dari 1 komputer) -- dicoba SATU PER SATU secara berurutan.
 // Tujuannya: kalau komputer pertama (mis. laptop utama) mati/tidak terjangkau, sistem otomatis
 // mencoba komputer berikutnya di daftar ini sebagai cadangan, tanpa perlu ganti pengaturan manual.
+// Digabung dari 2 sumber: (1) hasil auto-deteksi dari Supabase (PC yang baru saja lapor aktif --
+// dicoba lebih dulu karena paling mencerminkan keadaan SEKARANG), lalu (2) alamat manual yang
+// diisi di Pengaturan (dipakai sebagai cadangan tambahan / kalau auto-deteksi belum sempat jalan).
 function dkApiBaseList(){
   const cfg = DOKUMEN_KAPAL.config || {};
-  const list = Array.isArray(cfg.apiBaseUrls) ? cfg.apiBaseUrls.filter(Boolean) : [];
-  if(list.length) return list;
-  return [cfg.apiBaseUrl || 'http://localhost:3001'];
+  const manual = Array.isArray(cfg.apiBaseUrls) ? cfg.apiBaseUrls.filter(Boolean) : (cfg.apiBaseUrl ? [cfg.apiBaseUrl] : []);
+  const auto = DK_AUTO_URLS.map(a=>a.url);
+  const gabungan = [...auto, ...manual.filter(u=>!auto.includes(u))];
+  return gabungan.length ? gabungan : ['http://localhost:3001'];
 }
 // Dipertahankan untuk kompatibilitas kode lain yang masih memanggil dkApiBase() -- selalu
 // mengembalikan alamat PERTAMA di daftar (dipakai mis. untuk pesan error/tampilan ringkas).
@@ -8054,16 +8087,27 @@ function renderDokumenKapalScan(c, actions){
     </div>
 
     <div class="card">
-      <p class="card-title">Pengaturan koneksi ke service backend</p>
+      <div style="display:flex;align-items:center;justify-content:space-between;">
+        <p class="card-title" style="margin:0;">Komputer yang terdeteksi aktif sekarang</p>
+        <button class="btn btn-ghost btn-sm" onclick="dkRenderAutoDetected()">↻ Muat ulang</button>
+      </div>
+      <p style="font-size:12px;color:var(--ink-soft);margin:6px 0 12px;">
+        Daftar ini terisi otomatis — setiap komputer yang menjalankan <span style="font-family:var(--font-mono);">dokumen-kapal-service</span> melapor dirinya sendiri tiap ±1 menit. Kalau komputer paling atas (yang sedang dipakai) mati, sistem otomatis pindah ke komputer lain di daftar ini. Tidak perlu isi IP manual — kolom di bawah hanya cadangan tambahan.
+      </p>
+      <div id="dk-auto-detected-list" style="font-size:12.5px;color:var(--ink-soft);">Memuat…</div>
+    </div>
+
+    <div class="card">
+      <p class="card-title">Pengaturan koneksi ke service backend (opsional / cadangan tambahan)</p>
       <p style="font-size:12px;color:var(--ink-soft);margin:-6px 0 12px;">
-        Diisi sekali saja saat pertama kali setup (biasanya tidak perlu diubah lagi). Ini alamat service Node.js yang menjalankan proses login Inaportnet, pengecekan berkala, dan pengiriman email — lihat folder <span style="font-family:var(--font-mono);">dokumen-kapal-service/</span>.
+        Biasanya tidak perlu diisi sama sekali, karena komputer yang aktif sudah terdeteksi otomatis di atas. Isi kolom ini hanya kalau ada komputer yang perlu didaftarkan manual (mis. belum sempat lapor, atau di luar jaringan lokal lewat alamat tetap) — lihat folder <span style="font-family:var(--font-mono);">dokumen-kapal-service/</span>.
       </p>
       <div class="form-grid">
         <div class="form-field full">
-          <label>Alamat service (API Base URL) — boleh lebih dari satu komputer, 1 alamat per baris</label>
-          <textarea id="dk-cfg-urls" rows="3" style="font-family:var(--font-mono);font-size:12.5px;" placeholder="http://192.168.1.10:3001&#10;http://192.168.1.20:3001">${escapeHtml(dkApiBaseList().join('\n'))}</textarea>
+          <label>Alamat service tambahan (API Base URL) — opsional, 1 alamat per baris</label>
+          <textarea id="dk-cfg-urls" rows="3" style="font-family:var(--font-mono);font-size:12.5px;" placeholder="http://192.168.1.10:3001&#10;http://192.168.1.20:3001">${escapeHtml((DOKUMEN_KAPAL.config && Array.isArray(DOKUMEN_KAPAL.config.apiBaseUrls) ? DOKUMEN_KAPAL.config.apiBaseUrls : (DOKUMEN_KAPAL.config && DOKUMEN_KAPAL.config.apiBaseUrl ? [DOKUMEN_KAPAL.config.apiBaseUrl] : [])).join('\n'))}</textarea>
           <p style="font-size:11px;color:var(--ink-soft);margin:4px 0 0;">
-            Kalau diisi lebih dari satu, sistem akan mencoba alamat pertama dulu; kalau komputer itu mati/tidak terjangkau, otomatis dicoba alamat berikutnya di baris bawahnya — begitu seterusnya. Jadi kalau laptop utama Anda mati, sistem masih bisa jalan lewat komputer lain yang alamatnya didaftarkan di sini (asalkan service <span style="font-family:var(--font-mono);">dokumen-kapal-service</span> juga menyala di komputer itu, dan API Key-nya sama).
+            Alamat di sini digabung SETELAH daftar otomatis di atas, dan dicoba satu per satu kalau semua komputer yang terdeteksi otomatis tidak terjangkau.
           </p>
         </div>
         <div class="form-field full">
@@ -8075,6 +8119,34 @@ function renderDokumenKapalScan(c, actions){
     </div>
   `;
   dkRefreshWatchlist();
+  dkRenderAutoDetected();
+}
+/**
+ * Ambil daftar komputer yang aktif lapor (dkAutoDiscoverUrls) dan tampilkan di kartu
+ * "Komputer yang terdeteksi aktif sekarang". Dipanggil saat modul dibuka & saat tombol
+ * "Muat ulang" di kartu itu diklik.
+ */
+async function dkRenderAutoDetected(){
+  const box = document.getElementById('dk-auto-detected-list');
+  if(!box) return;
+  box.innerHTML = 'Memuat…';
+  const daftar = await dkAutoDiscoverUrls();
+  if(!daftar.length){
+    box.innerHTML = `<p style="margin:0;">Belum ada komputer yang terdeteksi aktif dalam 3 menit terakhir. Pastikan <span style="font-family:var(--font-mono);">dokumen-kapal-service</span> sedang menyala di minimal satu komputer, dan sudah pernah dijalankan sekali dengan <span style="font-family:var(--font-mono);">supabase-schema.sql</span> versi terbaru (untuk tabel <span style="font-family:var(--font-mono);">backend_status</span>).</p>`;
+    return;
+  }
+  box.innerHTML = `
+    <table class="ledger">
+      <thead><tr><th>Nama komputer</th><th>Alamat</th><th>Lapor terakhir</th></tr></thead>
+      <tbody>
+        ${daftar.map((d,i)=>`<tr>
+          <td class="name-cell">${escapeHtml(d.label)}${i===0?' <span style="color:var(--teal);font-size:11px;">● dicoba pertama</span>':''}</td>
+          <td style="font-family:var(--font-mono);font-size:12px;">${escapeHtml(d.url)}</td>
+          <td style="font-size:11.5px;white-space:nowrap;">${dkFmtWaktu(d.updated_at)}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+  `;
 }
 function dkFmtWaktu(iso){
   if(!iso) return 'belum pernah';
@@ -8201,16 +8273,20 @@ function dkSaveConfig(){
     .split('\n')
     .map(s=>s.trim().replace(/\/+$/,''))
     .filter(Boolean);
-  if(!urls.length) urls.push('http://localhost:3001');
+  // Catatan: kolom ini sekarang OPSIONAL (cadangan tambahan) -- boleh dikosongkan sepenuhnya,
+  // karena dkApiBaseList() akan tetap memakai hasil auto-deteksi dari Supabase (DK_AUTO_URLS),
+  // dan baru jatuh ke 'http://localhost:3001' kalau BENAR-BENAR tidak ada satupun yang terdeteksi
+  // maupun diisi manual (lihat dkApiBaseList()).
   DOKUMEN_KAPAL.config = {
-    apiBaseUrl: urls[0], // dipertahankan untuk kompatibilitas kode/data lama
+    apiBaseUrl: urls[0] || '', // dipertahankan untuk kompatibilitas kode/data lama
     apiBaseUrls: urls,
     apiKey: document.getElementById('dk-cfg-key').value.trim()
   };
   DK_LAST_WORKING_URL = null; // reset, coba lagi dari alamat pertama sesuai urutan baru
   saveDokumenKapalData();
-  toast(urls.length>1 ? `Pengaturan koneksi backend disimpan (${urls.length} alamat terdaftar).` : 'Pengaturan koneksi backend disimpan.');
+  toast(urls.length ? `Pengaturan koneksi backend disimpan (${urls.length} alamat cadangan manual).` : 'Pengaturan koneksi backend disimpan (memakai auto-deteksi saja).');
   dkRefreshWatchlist();
+  dkRenderAutoDetected();
 }
 async function dkTriggerScrape(){
   const urlInput = document.getElementById('dk-url');
