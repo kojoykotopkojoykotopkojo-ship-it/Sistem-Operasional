@@ -305,13 +305,17 @@ select,.input{
 .input:focus,select:focus{outline:none;border-color:var(--brass);box-shadow:0 0 0 3px rgba(184,146,47,0.14);}
 
 
-.card{background:#fff;border:1px solid #E4DFCF;border-radius:8px;padding:20px 22px;margin-bottom:20px;box-shadow:0 1px 8px rgba(24,36,48,.04);}
+.card{background:#fff;border:1px solid #E4DFCF;border-radius:8px;padding:20px 22px;margin-bottom:20px;box-shadow:0 1px 8px rgba(24,36,48,.04);
+  overflow-x:auto;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;}
+/* Kartu yang tabelnya bisa lebih lebar dari layar (padding:0) tetap butuh jarak aman
+   di kiri-kanan supaya angka/teks tidak mepet ke tepi layar saat digeser di HP. */
+.card[style*="padding:0"]{padding-left:2px;padding-right:2px;}
 .card-title{font-family:var(--font-display);font-size:15.5px;font-weight:600;margin:0 0 14px;color:var(--ink);}
 
 .stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:22px;}
 .stat-card{background:var(--navy-900);border-radius:5px;padding:16px 18px;color:var(--paper);}
 .stat-label{font-size:11.5px;color:#9FB0C2;letter-spacing:.5px;text-transform:uppercase;margin-bottom:6px;}
-.stat-value{font-family:var(--font-mono);font-size:21px;font-weight:600;}
+.stat-value{font-family:var(--font-mono);font-size:21px;font-weight:600;overflow-wrap:break-word;word-break:break-word;}
 .stat-card.gold{background:linear-gradient(135deg,#8C6C1F,#B8922F);}
 .stat-card.teal{background:linear-gradient(135deg,#124F4B,#1B7F79);}
 
@@ -384,7 +388,8 @@ table.ledger tr:hover td{background:#FBFAF5;}
   position:fixed;inset:0;background:rgba(6,24,43,.6);display:flex;align-items:center;justify-content:center;
   padding:20px;z-index:900;
 }
-.modal-box{background:#fff;border-radius:6px;padding:26px;max-width:460px;width:100%;color:var(--ink);}
+.modal-box{background:#fff;border-radius:6px;padding:26px;max-width:460px;width:100%;color:var(--ink);
+  max-height:calc(100vh - 40px);overflow-y:auto;overflow-x:auto;-webkit-overflow-scrolling:touch;box-sizing:border-box;}
 .modal-box h3{font-family:var(--font-display);margin:0 0 14px;font-size:17px;}
 .modal-actions{display:flex;gap:10px;margin-top:18px;justify-content:flex-end;}
 
@@ -411,9 +416,12 @@ table.ledger tr:hover td{background:#FBFAF5;}
   }
   #sidebar.open{transform:translateX(0);}
   #main{width:100%;}
-  .content{padding:18px;overflow-x:auto;-webkit-overflow-scrolling:touch;}
+  .content{padding:18px;}
   .topbar{padding:14px 16px;}
-  /* Tabel data tetap dalam ukuran normalnya, area kontennya saja yang di-scroll ke samping */
+  /* Tabel data tetap dalam ukuran normalnya; kartu (.card) di sekitarnya yang jadi area
+     geser ke samping (lihat aturan .card di atas). Ini sengaja TIDAK menaruh overflow-x
+     di .content juga, supaya tidak ada dua lapis area geser yang rebutan sentuhan --
+     itulah biang keladi tabel yang "macet"/tidak mau digeser di sebagian HP Android. */
   table.ledger,#mk-table,#tly-table{min-width:720px;}
   /* Perbesar area sentuh supaya nyaman dipakai jari di HP */
   .nav-item,.nav-section{padding:13px 14px;font-size:14.5px;}
@@ -437,6 +445,8 @@ table.ledger tr:hover td{background:#FBFAF5;}
   .topbar{padding:12px 14px;flex-wrap:wrap;}
   .modal-box{padding:20px;max-width:calc(100vw - 24px);}
   .login-card{padding:28px 22px;}
+  .stat-value{font-size:18px;}
+  .stat-card{padding:14px 14px;}
 }
 
 /* ===== ADMIN AI CHAT (mengambang) ===== */
@@ -567,6 +577,56 @@ table.ledger tr:hover td{background:#FBFAF5;}
     right:max(16px, env(safe-area-inset-right) + 8px);
     bottom:max(16px, env(safe-area-inset-bottom) + 8px);
   }
+}
+
+/* ===== PETUNJUK TABEL BISA DIGESER (mobile) ===== */
+/* Bayangan tipis + label kecil "geser" di kartu yang tabelnya lebih lebar dari layar,
+   supaya pengguna sadar masih ada kolom di sebelah kanan yang belum kelihatan.
+   Otomatis hilang begitu sudah digeser sampai ujung (lihat script scrollHintInit). */
+.card{position:relative;}
+.card.x-scrollable.x-not-end::after{
+  content:"";position:sticky;top:0;right:0;float:right;
+  width:22px;height:100%;margin-right:-22px;pointer-events:none;
+  background:linear-gradient(to right, rgba(255,255,255,0), rgba(24,36,48,.10));
+}
+.card.x-scrollable.x-not-start::before{
+  content:"";position:sticky;top:0;left:0;float:left;
+  width:14px;height:100%;margin-left:-14px;pointer-events:none;
+  background:linear-gradient(to left, rgba(255,255,255,0), rgba(24,36,48,.06));
+}
+.x-scroll-badge{
+  display:none;position:absolute;top:6px;right:10px;z-index:2;
+  font-size:9.5px;color:var(--brass-dark);background:rgba(184,146,47,.14);
+  padding:2px 7px;border-radius:9px;letter-spacing:.3px;font-weight:600;
+  pointer-events:none;
+}
+@media (max-width:900px){
+  .card.x-scrollable.x-not-end .x-scroll-badge{display:inline-block;}
+}
+
+/* ===== PENCARIAN LINTAS MODUL (topbar) ===== */
+#global-search-input{
+  width:100%;padding:9px 14px;border:1px solid var(--paper-dim);border-radius:20px;
+  font-size:13px;background:#fff;color:var(--ink);
+}
+#global-search-input:focus{outline:none;border-color:var(--brass);}
+.gs-panel{
+  position:absolute;top:calc(100% + 6px);left:0;right:0;max-height:60vh;overflow-y:auto;
+  background:#fff;border:1px solid var(--paper-dim);border-radius:10px;
+  box-shadow:0 8px 24px rgba(24,36,48,.14);z-index:50;padding:6px;
+  -webkit-overflow-scrolling:touch;
+}
+.gs-group-label{
+  font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;
+  color:var(--ink-soft);padding:8px 10px 4px;
+}
+.gs-item{padding:8px 10px;border-radius:6px;cursor:pointer;}
+.gs-item:hover{background:var(--paper-soft,#f6f3ee);}
+.gs-item-label{font-size:13px;font-weight:600;color:var(--ink);}
+.gs-item-sub{font-size:11.5px;color:var(--ink-soft);margin-top:1px;}
+.gs-more, .gs-empty{font-size:11.5px;color:var(--ink-soft);padding:6px 10px;}
+@media (max-width:900px){
+  #global-search-wrap{order:3;flex-basis:100%;max-width:100%;margin-top:6px;}
 }
 </style>
 </head>
@@ -727,6 +787,7 @@ table.ledger tr:hover td{background:#FBFAF5;}
         </div>
       </div>
       <div class="nav-group" style="margin-top:18px;padding-top:14px;border-top:1px solid var(--navy-700);">
+        <div class="nav-item" data-view="log-aktivitas" onclick="goto('log-aktivitas')"><span class="nav-dot"></span>Log Aktivitas</div>
         <div class="nav-item" data-view="pengaturan" onclick="goto('pengaturan')"><span class="nav-dot"></span>Pengaturan</div>
       </div>
       <div class="sidebar-foot">
@@ -744,6 +805,11 @@ table.ledger tr:hover td{background:#FBFAF5;}
             <h1 class="page-title" id="page-title">Dashboard</h1>
             <p class="page-sub" id="page-sub">Rekap arus kas seluruh bulan</p>
           </div>
+        </div>
+        <div id="global-search-wrap" style="position:relative;flex:1 1 220px;max-width:360px;">
+          <input type="text" id="global-search-input" placeholder="🔍 Cari kapal, nota dinas, transaksi..." autocomplete="off"
+            oninput="debounceGlobalSearch()" onfocus="if(this.value.trim().length>=2) runGlobalSearch();">
+          <div id="global-search-results" class="gs-panel" style="display:none;"></div>
         </div>
         <div id="topbar-actions"></div>
       </div>
@@ -871,6 +937,16 @@ function userHasAccess(mod){
   if(!CURRENT_USER) return false;
   if(CURRENT_USER.isAdmin) return true;
   return !!(CURRENT_USER.access && CURRENT_USER.access[mod]);
+}
+// Aturan seragam untuk tombol Edit/Hapus di SEMUA modul: Admin & Ka. Operasional selalu boleh
+// mengubah/menghapus catatan siapa pun; Petugas/Giro hanya boleh mengubah/menghapus catatan
+// yang dia buat sendiri. Sebelumnya aturan ini cuma berlaku di Buku Kas Operasional -- sekarang
+// dipakai konsisten di semua modul lain juga (Kunjungan, PASPEL, MISS Keagenan, Tally, Tali,
+// Kas Keagenan, Nota Dinas, PNBP) supaya tidak ada modul yang "lebih longgar" tanpa sengaja.
+function canManageRecord(record){
+  if(!CURRENT_USER) return false;
+  if(CURRENT_USER.isAdmin || CURRENT_USER.role==='kaops') return true;
+  return !!(record && record.dibuatOleh && record.dibuatOleh===CURRENT_USER.name);
 }
 // Menampilkan/menyembunyikan seluruh blok modul di sidebar sesuai hak akses pengguna yang login.
 function applyAccessVisibility(){
@@ -1496,6 +1572,44 @@ async function saveTallyData(){
   await auditedUpsert(TALLY_STORAGE_KEY, TALLY, 'Menyimpan data Tally General Cargo', TALLY);
 }
 
+/* ===== Storage terpisah untuk Pengaturan Logo (logo Pelni, Danantara & watermark) =====
+   Admin bisa mengganti logo Pelni, logo Danantara, logo watermark umum, dan logo khusus
+   untuk halaman Tally Muat/Bongkar dari menu Pengaturan. Bila kosong (belum diisi Admin),
+   sistem tetap memakai logo bawaan (PELNI_LOGO/DANANTARA_LOGO/WATERMARK_LOGO_GRAY) supaya
+   tampilan tidak berubah sebelum Admin mengatur logo sendiri. */
+const LOGO_STORAGE_KEY = 'pengaturan-logo-data';
+let LOGO_SETTINGS = { pelni:'', danantara:'', watermark:'', tally:'' };
+async function loadLogoSettings(){
+  if(!sbClient) return;
+  try{
+    const { data, error } = await sbClient
+      .from('app_storage')
+      .select('value, updated_at')
+      .eq('storage_key', LOGO_STORAGE_KEY)
+      .maybeSingle();
+    if(error) throw error;
+    if(data && data.value){
+      LOGO_SETTINGS = Object.assign({ pelni:'', danantara:'', watermark:'', tally:'' }, data.value);
+    }else{
+      await saveLogoSettings();
+    }
+    if(data) LOGO_SETTINGS._serverUpdatedAt = data.updated_at;
+  }catch(e){
+    toast('Gagal memuat pengaturan logo: '+e.message);
+  }
+}
+async function saveLogoSettings(){
+  await auditedUpsert(LOGO_STORAGE_KEY, LOGO_SETTINGS, 'Menyimpan pengaturan logo', LOGO_SETTINGS);
+}
+// Helper: kembalikan logo aktif (hasil upload Admin) atau logo bawaan bila belum diatur.
+function getPelniLogo(){ return (LOGO_SETTINGS && LOGO_SETTINGS.pelni) ? LOGO_SETTINGS.pelni : PELNI_LOGO; }
+function getDanantaraLogo(){ return (LOGO_SETTINGS && LOGO_SETTINGS.danantara) ? LOGO_SETTINGS.danantara : DANANTARA_LOGO; }
+function getWatermarkLogo(){ return (LOGO_SETTINGS && LOGO_SETTINGS.watermark) ? LOGO_SETTINGS.watermark : WATERMARK_LOGO_GRAY; }
+// Logo khusus Tally Muat/Bongkar: kalau Admin belum mengisi logo Tally sendiri, pakai
+// logo watermark umum (WATERMARK_LOGO_GRAY / hasil ganti Admin) supaya perilaku sebelum
+// diatur tetap sama seperti sekarang.
+function getTallyLogo(){ return (LOGO_SETTINGS && LOGO_SETTINGS.tally) ? LOGO_SETTINGS.tally : getWatermarkLogo(); }
+
 /* ===== Storage terpisah untuk modul Kas Keagenan ===== */
 const KAS_KEAGENAN_STORAGE_KEY = 'kas-keagenan-data';
 async function loadKasKeaganData(){
@@ -1785,6 +1899,7 @@ registerRealtimeHolder(KUNJUNGAN_STORAGE_KEY, ()=>KUNJUNGAN);
 registerRealtimeHolder(PASPEL_STORAGE_KEY, ()=>PASPEL);
 registerRealtimeHolder(MISS_KEAGENAN_STORAGE_KEY, ()=>MISS_KEAGENAN);
 registerRealtimeHolder(TALLY_STORAGE_KEY, ()=>TALLY);
+registerRealtimeHolder(LOGO_STORAGE_KEY, ()=>LOGO_SETTINGS);
 registerRealtimeHolder(KAS_KEAGENAN_STORAGE_KEY, ()=>KAS_KEAGENAN);
 registerRealtimeHolder(NOTA_DINAS_STORAGE_KEY, ()=>NOTA_DINAS);
 registerRealtimeHolder(DOKUMEN_KAPAL_STORAGE_KEY, ()=>DOKUMEN_KAPAL);
@@ -1863,6 +1978,7 @@ async function doLogin(){
       loadPnbpData(),
       loadDokumenKapalData(),
       loadTaliData(),
+      loadLogoSettings(),
     ]);
   } finally {
     if(btnMasuk){ btnMasuk.disabled = false; btnMasuk.textContent = teksAsli; }
@@ -1881,9 +1997,10 @@ async function doLogin(){
   resetIdleTimer();
   document.getElementById('login-screen').classList.add('hidden');
   document.getElementById('app-shell').classList.remove('hidden');
-  document.getElementById('who-name').textContent = u.name+' ('+u.nrp+')';
+  document.getElementById('who-name').textContent = u.name;
   document.getElementById('who-role').textContent = roleLabel(u.role).toUpperCase() + (u.isAdmin ? ' · ADMIN' : '');
   document.querySelectorAll('.nav-item[data-view="pengaturan"]').forEach(n=> n.style.display = u.isAdmin ? '' : 'none');
+  document.querySelectorAll('.nav-item[data-view="log-aktivitas"]').forEach(n=> n.style.display = u.isAdmin ? '' : 'none');
   applyAccessVisibility();
   if(u.isAdmin){ initAdminAiChat(); } else { hideAdminAiChat(); }
   const startModule = firstAccessibleModule();
@@ -1946,7 +2063,8 @@ const VIEW_META = {
   'nd-riwayat':{title:'Semua Nota Dinas', sub:'Tracking status & tindak lanjut seluruh nota dinas yang tercatat'},
   'dk-scan':{title:'Pantau Otomatis', sub:'Tempel link Pengajuan PKK sekali — sistem mengecek berkala sendiri & kirim email otomatis kalau ada perubahan'},
   'dk-folder':{title:'Folder Dokumen per Kapal', sub:'Dokumen keberangkatan dikelompokkan otomatis berdasarkan nama kapal & tanggal terbit'},
-  'dk-riwayat':{title:'Semua Dokumen Keberangkatan', sub:'Kirim dokumen ke email tujuan dengan satu klik'}
+  'dk-riwayat':{title:'Semua Dokumen Keberangkatan', sub:'Kirim dokumen ke email tujuan dengan satu klik'},
+  'log-aktivitas':{title:'Log Aktivitas', sub:'Jejak setiap penyimpanan data: siapa, kapan, dan perubahan apa (khusus Admin)'}
 };
 // Dipakai bersama oleh goto() dan asisten suara, supaya keduanya selalu konsisten menilai
 // apakah akun ini boleh membuka sebuah halaman -- termasuk aturan khusus 'pnbp'.
@@ -2039,6 +2157,218 @@ function saldoAkhirBulan(bulan){
   return saldoAwalBulan(bulan) + s.netBulan;
 }
 /* ======================= RENDER ROUTER ======================= */
+/* ===== PETUNJUK "BISA DIGESER" UNTUK KARTU BERISI TABEL LEBAR (mobile) =====
+   Setiap kali tampilan berganti (render ulang lewat innerHTML), cek semua .card:
+   kalau isinya lebih lebar dari kartu itu sendiri (tabel laporan dll di HP sempit),
+   tandai supaya CSS menampilkan bayangan tepi + label kecil "geser", dan perbarui
+   saat kartu itu digeser sampai ujung kiri/kanan. */
+function scanScrollableCards(){
+  document.querySelectorAll('.card').forEach(card=>{
+    const overflowing = card.scrollWidth - card.clientWidth > 4;
+    card.classList.toggle('x-scrollable', overflowing);
+    if(overflowing){
+      if(!card.querySelector(':scope > .x-scroll-badge')){
+        const badge = document.createElement('span');
+        badge.className = 'x-scroll-badge';
+        badge.textContent = '⟷ geser';
+        card.insertBefore(badge, card.firstChild);
+      }
+      updateScrollEdgeState(card);
+      if(!card.dataset.xScrollBound){
+        card.addEventListener('scroll', ()=>updateScrollEdgeState(card), {passive:true});
+        card.dataset.xScrollBound = '1';
+      }
+    } else {
+      card.classList.remove('x-not-start','x-not-end');
+    }
+  });
+}
+function updateScrollEdgeState(card){
+  card.classList.toggle('x-not-start', card.scrollLeft > 4);
+  card.classList.toggle('x-not-end', card.scrollLeft < (card.scrollWidth - card.clientWidth - 4));
+}
+function scheduleScrollableScan(){
+  clearTimeout(window._xScrollScanT);
+  window._xScrollScanT = setTimeout(scanScrollableCards, 60);
+}
+window.addEventListener('resize', scheduleScrollableScan);
+document.addEventListener('DOMContentLoaded', function(){
+  const contentEl = document.getElementById('content');
+  const modalEl = document.getElementById('modal-root');
+  const observer = new MutationObserver(scheduleScrollableScan);
+  if(contentEl) observer.observe(contentEl, {childList:true, subtree:true});
+  if(modalEl) observer.observe(modalEl, {childList:true, subtree:true});
+  scheduleScrollableScan();
+});
+
+/* ======================= PENCARIAN LINTAS MODUL (topbar) =======================
+   Satu kotak pencarian yang menelusuri SEMUA modul sekaligus (Kas, Kunjungan, PASPEL,
+   MISS Keagenan, Tally, Tali, Kas Keagenan, Nota Dinas, Dokumen Kapal, PNBP) -- bukan
+   cuma filter per-halaman seperti sebelumnya. Hanya menelusuri data yang sudah termuat
+   di memori (data modul yang belum pernah dibuka pada sesi ini, mis. Dokumen Kapal
+   sebelum halamannya pertama kali dibuka, belum ikut tercari -- ini batasan wajar
+   karena pencarian ini murni di sisi klien, tanpa query tambahan ke server per modul).
+   Hasil disaring juga oleh hak akses (userHasAccess) supaya pengguna non-admin tidak
+   melihat data dari modul yang memang tidak boleh diaksesnya. */
+let GLOBAL_SEARCH_T = null;
+let GLOBAL_SEARCH_MATCHES = [];
+function debounceGlobalSearch(){
+  clearTimeout(GLOBAL_SEARCH_T);
+  GLOBAL_SEARCH_T = setTimeout(runGlobalSearch, 220);
+}
+function closeGlobalSearch(){
+  const box = document.getElementById('global-search-results');
+  if(box){ box.style.display='none'; box.innerHTML=''; }
+}
+function buildGlobalSearchIndex(){
+  const idx = [];
+  try{
+    if(userHasAccess('kas')){
+      (DATA.transactions||[]).forEach(t=>idx.push({
+        modul:'Kas Operasional',
+        label:(t.jenis==='pemasukan'?'Pemasukan':'Pengeluaran')+(t.kategori?' — '+t.kategori:''),
+        sub:[fmtDate(t.tanggal), t.keterangan, t.namaKapal, fmtRp(nilaiTx(t))].filter(Boolean).join(' · '),
+        text:[t.keterangan,t.kategori,t.namaKapal,t.jenis,t.dibuatOleh].filter(Boolean).join(' '),
+        go:()=>goto('riwayat')
+      }));
+    }
+  }catch(e){}
+  try{
+    if(userHasAccess('kunjungan')){
+      (KUNJUNGAN.records||[]).forEach(r=>idx.push({
+        modul:'Kunjungan Kapal', label:r.kapal||'-',
+        sub:[fmtDate(r.tanggal), r.noDok, r.agen].filter(Boolean).join(' · '),
+        text:[r.kapal,r.agen,r.kegiatan,r.noDok,r.jenis,r.tujuan,r.bendera].filter(Boolean).join(' '),
+        go:()=>{ KUNJ_RIWAYAT_FILTER.bulan='all'; goto('kunj-riwayat'); }
+      }));
+    }
+  }catch(e){}
+  try{
+    if(userHasAccess('paspel')){
+      (PASPEL.records||[]).forEach(r=>idx.push({
+        modul:'PASPEL', label:r.kapal||'-',
+        sub:[fmtDate(r.tanggal), r.noDok].filter(Boolean).join(' · '),
+        text:[r.kapal,r.noDok].filter(Boolean).join(' '),
+        go:()=>{ PASPEL_RIWAYAT_FILTER.bulan='all'; goto('paspel-riwayat'); }
+      }));
+    }
+  }catch(e){}
+  try{
+    if(userHasAccess('missKeagenan')){
+      (MISS_KEAGENAN.records||[]).forEach(r=>idx.push({
+        modul:'MISS Keagenan', label:r.kapal||'-',
+        sub:[fmtDate(r.ta), r.principal, r.trayek].filter(Boolean).join(' · '),
+        text:[r.kapal,r.principal,r.trayek,r.keterangan,r.bendera,r.dwtGt].filter(Boolean).join(' '),
+        go:()=>{ MK_RIWAYAT_FILTER.bulan='all'; goto('mk-riwayat'); }
+      }));
+    }
+  }catch(e){}
+  try{
+    if(userHasAccess('tally')){
+      (TALLY.records||[]).forEach(r=>idx.push({
+        modul:'Tally General Cargo', label:r.kapal||'-',
+        sub:[hariTanggalLabel(r.hariTanggal), r.voyage, r.pelabuhan].filter(Boolean).join(' · '),
+        text:[r.kapal,r.voyage,r.pelabuhan].filter(Boolean).join(' '),
+        go:()=>goto('tally-'+(r.jenis||'muat')+'-riwayat')
+      }));
+    }
+  }catch(e){}
+  try{
+    if(userHasAccess('kas') && typeof TALI!=='undefined'){
+      (TALI.records||[]).forEach(r=>idx.push({
+        modul:'Tali Pasang/Lepas', label:r.kapal||'-',
+        sub:[fmtDate(r.tanggal), taliJenisLabel(r.jenis)].filter(Boolean).join(' · '),
+        text:[r.kapal, taliJenisLabel(r.jenis)].filter(Boolean).join(' '),
+        go:()=>goto('tali-rekap')
+      }));
+    }
+  }catch(e){}
+  try{
+    if(userHasAccess('kasKeagenan')){
+      (KAS_KEAGENAN.records||[]).forEach(r=>idx.push({
+        modul:'Kas Keagenan', label:r.kapal||'-',
+        sub:[fmtDate(r.tanggal), r.noNotaDinas, r.keterangan].filter(Boolean).join(' · '),
+        text:[r.kapal,r.noNotaDinas,r.keterangan,r.dibuatOleh].filter(Boolean).join(' '),
+        go:()=>{ KK_RIWAYAT_FILTER.bulan='all'; KK_RIWAYAT_FILTER.jenis='all'; goto('kk-riwayat'); }
+      }));
+    }
+  }catch(e){}
+  try{
+    if(userHasAccess('notaDinas')){
+      (NOTA_DINAS.records||[]).forEach(r=>idx.push({
+        modul:'Nota Dinas', label:r.nomor||'-',
+        sub:[r.perihal, ndStatusOf(r.statusId).label].filter(Boolean).join(' · '),
+        text:[r.nomor,r.perihal,r.kode].filter(Boolean).join(' '),
+        go:()=>{ ND_RIWAYAT_FILTER={kode:'all',status:'all'}; goto('nd-riwayat'); }
+      }));
+    }
+  }catch(e){}
+  try{
+    if(userHasAccess('dokumenKapal')){
+      (DK_LIVE_DOCS||[]).forEach(r=>idx.push({
+        modul:'Dokumen Keberangkatan Kapal', label:r.namaKapal||'-',
+        sub:[fmtDate(r.tanggalTerbit), r.nomorPkk, r.jenisDokumen].filter(Boolean).join(' · '),
+        text:[r.namaKapal,r.nomorPkk,r.jenisDokumen].filter(Boolean).join(' '),
+        go:()=>{ DK_RIWAYAT_FILTER.kapal='all'; goto('dk-riwayat'); }
+      }));
+    }
+  }catch(e){}
+  try{
+    if(userHasAccess('kas') || userHasAccess('pnbp')){
+      (PNBP.records||[]).forEach(r=>idx.push({
+        modul:'PNBP Kapal', label:r.kapal||'-',
+        sub:[fmtDate(r.tanggal), r.keterangan, fmtRp(r.jumlah)].filter(Boolean).join(' · '),
+        text:[r.kapal,r.keterangan].filter(Boolean).join(' '),
+        go:()=>goto('pnbp')
+      }));
+    }
+  }catch(e){}
+  return idx;
+}
+function runGlobalSearch(){
+  const input = document.getElementById('global-search-input');
+  const box = document.getElementById('global-search-results');
+  if(!input || !box || !CURRENT_USER) return;
+  const q = input.value.trim().toLowerCase();
+  if(q.length < 2){ box.style.display='none'; box.innerHTML=''; return; }
+  const idx = buildGlobalSearchIndex();
+  const matches = idx.filter(it => (it.text||'').toLowerCase().includes(q) || (it.label||'').toLowerCase().includes(q));
+  GLOBAL_SEARCH_MATCHES = matches;
+  if(matches.length===0){
+    box.innerHTML = `<div class="gs-empty">Tidak ada hasil untuk "${escapeHtml(input.value.trim())}".</div>`;
+    box.style.display='block';
+    return;
+  }
+  const byModule = {};
+  matches.forEach(m=>{ (byModule[m.modul] = byModule[m.modul]||[]).push(m); });
+  let html = '';
+  Object.keys(byModule).forEach(modName=>{
+    const items = byModule[modName];
+    html += `<div class="gs-group-label">${escapeHtml(modName)}</div>`;
+    items.slice(0,6).forEach(it=>{
+      const i = matches.indexOf(it);
+      html += `<div class="gs-item" onclick="goToGlobalSearchResult(${i})">
+        <div class="gs-item-label">${escapeHtml(it.label)}</div>
+        <div class="gs-item-sub">${escapeHtml(it.sub||'')}</div>
+      </div>`;
+    });
+    if(items.length>6) html += `<div class="gs-more">+${items.length-6} hasil lain di modul ini — persempit kata kunci untuk melihat semuanya.</div>`;
+  });
+  box.innerHTML = html;
+  box.style.display='block';
+}
+function goToGlobalSearchResult(i){
+  const m = GLOBAL_SEARCH_MATCHES[i];
+  if(!m) return;
+  closeGlobalSearch();
+  const input = document.getElementById('global-search-input'); if(input) input.value='';
+  m.go();
+}
+document.addEventListener('click', function(e){
+  const wrap = document.getElementById('global-search-wrap');
+  if(wrap && !wrap.contains(e.target)) closeGlobalSearch();
+});
+
 function render(){
   const c = document.getElementById('content');
   const actions = document.getElementById('topbar-actions');
@@ -2051,6 +2381,7 @@ function render(){
   if(CURRENT_VIEW==='laporan') return renderLaporan(c, actions);
   if(CURRENT_VIEW==='pnbp') return renderPnbp(c, actions);
   if(CURRENT_VIEW==='pengaturan') return renderPengaturan(c, actions);
+  if(CURRENT_VIEW==='log-aktivitas') return renderLogAktivitas(c, actions);
   if(CURRENT_VIEW==='kunj-input') return renderKunjunganInput(c, actions);
   if(CURRENT_VIEW==='kunj-riwayat') return renderKunjunganRiwayat(c, actions);
   if(CURRENT_VIEW==='kunj-laporan') return renderKunjunganLaporan(c, actions);
@@ -3538,7 +3869,7 @@ function renderRiwayat(c, actions){
       </div>
     </div>
     <p style="font-size:11.5px;color:var(--ink-soft);margin:-6px 0 14px;">Kolom yang dibaca dari file Excel: <b>Tanggal, Jenis, Kapal, Keterangan, Jumlah</b>. Nama petugas pencatat pada transaksi hasil impor akan selalu memakai akun yang sedang login (<b>${escapeHtml(CURRENT_USER.name)}</b>), bukan dari isi file.</p>
-    <div class="card" style="padding:0;overflow:hidden;">
+    <div class="card" style="padding:0;overflow:auto;-webkit-overflow-scrolling:touch;">
       <table class="ledger">
         <thead><tr>
           <th>Tanggal</th><th>Jenis</th><th>Kategori</th><th>Keterangan</th><th>Kapal</th><th class="num">Jumlah</th><th>Diinput</th><th></th>
@@ -4061,11 +4392,11 @@ function buildPdfPrintDiv(bulan){
   const val = 'font-size:11px;color:#111;padding:2px 0;';
 
   const printDiv = document.createElement('div');
-  printDiv.style.cssText = 'position:fixed;left:-9999px;top:0;width:800px;background:#fff;color:#111;padding:34px;font-family:Arial,Helvetica,sans-serif;';
+  printDiv.style.cssText = 'position:fixed;left:-9999px;top:0;width:800px;background:transparent;color:#111;padding:34px;font-family:Arial,Helvetica,sans-serif;';
   printDiv.innerHTML = wrapWithLogoWatermark(`
     <div class="brk-atom" style="display:flex;align-items:flex-start;gap:18px;margin-bottom:14px;">
       <div style="flex-shrink:0;padding-top:2px;">
-        <img src="${PELNI_LOGO}" alt="PELNI" style="height:34px;width:auto;">
+        <img src="${getPelniLogo()}" alt="PELNI" style="height:34px;width:auto;">
       </div>
       <div style="flex:1;text-align:center;">
         <div style="font-family:Arial,sans-serif;font-weight:700;font-size:17px;color:#111;line-height:1.3;">PT. PELAYARAN NASIONAL INDONESIA<br>(PERSERO)<br>KENDARI</div>
@@ -4075,7 +4406,7 @@ function buildPdfPrintDiv(bulan){
     <div class="brk-atom" style="border:1px solid #111;text-align:center;padding:6px 0;margin-bottom:14px;">
       <span style="font-size:16px;font-weight:700;text-decoration:underline;letter-spacing:.5px;">LAPORAN ARUS KAS BULAN ${monthLabel(bulan).toUpperCase()}</span>
     </div>
-    <table style="width:100%;border-collapse:collapse;margin-bottom:14px;">
+    <table style="width:100%;border-collapse:separate;border-spacing:0;margin-bottom:14px;">
       <tr>
         <td style="width:16%;vertical-align:top;${lbl}">Document No.</td><td style="width:2%;${lbl}">:</td>
         <td style="width:34%;vertical-align:top;${val}">${noDok}</td>
@@ -4107,43 +4438,84 @@ function buildPdfPrintDiv(bulan){
         <td style="${val}"><span style="display:inline-block;font-weight:700;padding:3px 12px;border-radius:4px;letter-spacing:.6px;font-size:10.5px;${approved?'background:rgba(22,163,74,0.08);color:#16A34A;border:1.3px solid #16A34A;':'background:rgba(122,88,17,0.08);color:#7A5811;border:1.3px solid #C08A1E;'}">${approved?'✓ DISETUJUI':'BELUM DISETUJUI'}</span></td>
       </tr>
     </table>
-    <table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:2px;border:1px solid #111;">
+    <div style="border:1px solid #111;margin-bottom:2px;">
+    <table style="width:100%;border-collapse:separate;border-spacing:0;font-size:12px;">
       <thead><tr>
         <th style="text-align:center;border-bottom:1px solid #111;border-right:1px solid #111;padding:6px;background:#F2F2F2;width:40px;">No</th>
         <th style="text-align:left;border-bottom:1px solid #111;border-right:1px solid #111;padding:6px;background:#F2F2F2;">Description</th>
         <th style="text-align:right;border-bottom:1px solid #111;padding:6px;background:#F2F2F2;width:150px;">Amount</th>
       </tr></thead>
       <tbody>
-        <tr><td style="text-align:center;padding:5px 6px;border-right:1px solid #111;border-bottom:1px solid #ddd;">1</td><td style="padding:5px 6px;border-right:1px solid #111;border-bottom:1px solid #ddd;">Sisa bulan sebelumnya</td><td style="text-align:right;padding:5px 6px;border-bottom:1px solid #ddd;">${fmtRp(saldoAwal)}</td></tr>
-        <tr><td style="text-align:center;padding:5px 6px;border-right:1px solid #111;border-bottom:1px solid #ddd;">2</td><td style="padding:5px 6px;border-right:1px solid #111;border-bottom:1px solid #ddd;">Pemasukan</td><td style="text-align:right;padding:5px 6px;border-bottom:1px solid #ddd;">${fmtRp(s.byKat['PEMASUKAN'])}</td></tr>
-        ${KATEGORI_OPS.map((k,i)=>`<tr><td style="text-align:center;padding:5px 6px;border-right:1px solid #111;border-bottom:1px solid #ddd;">${i+3}</td><td style="padding:5px 6px;border-right:1px solid #111;border-bottom:1px solid #ddd;">${k}</td><td style="text-align:right;padding:5px 6px;border-bottom:1px solid #ddd;">-${fmtRp(s.byKat[k])}</td></tr>`).join('')}
+        <tr><td style="text-align:center;padding:5px 6px;border-right:1px solid #111;border-bottom:1px solid #999;">1</td><td style="padding:5px 6px;border-right:1px solid #111;border-bottom:1px solid #999;">Sisa bulan sebelumnya</td><td style="text-align:right;padding:5px 6px;border-bottom:1px solid #999;">${fmtRp(saldoAwal)}</td></tr>
+        <tr><td style="text-align:center;padding:5px 6px;border-right:1px solid #111;border-bottom:1px solid #999;">2</td><td style="padding:5px 6px;border-right:1px solid #111;border-bottom:1px solid #999;">Pemasukan</td><td style="text-align:right;padding:5px 6px;border-bottom:1px solid #999;">${fmtRp(s.byKat['PEMASUKAN'])}</td></tr>
+        ${KATEGORI_OPS.map((k,i)=>`<tr><td style="text-align:center;padding:5px 6px;border-right:1px solid #111;border-bottom:1px solid #999;">${i+3}</td><td style="padding:5px 6px;border-right:1px solid #111;border-bottom:1px solid #999;">${k}</td><td style="text-align:right;padding:5px 6px;border-bottom:1px solid #999;">-${fmtRp(s.byKat[k])}</td></tr>`).join('')}
         <tr><td colspan="2" style="text-align:right;padding:6px;border-right:1px solid #111;border-top:1px solid #111;font-weight:700;">TOTAL</td><td style="text-align:right;padding:6px;border-top:1px solid #111;font-weight:700;">${fmtRp(saldoAkhir)}</td></tr>
       </tbody>
     </table>
-    <table style="width:100%;border-collapse:collapse;font-size:11px;margin-bottom:18px;border:1px solid #111;border-top:none;">
+    </div>
+    <div style="border:1px solid #111;border-top:none;margin-bottom:18px;">
+    <table style="width:100%;border-collapse:separate;border-spacing:0;font-size:11px;">
       <tr><td style="width:14%;padding:6px;vertical-align:top;font-weight:600;">Says</td><td style="width:2%;padding:6px;vertical-align:top;">:</td>
         <td style="padding:6px;vertical-align:top;">${saldoAkhir<0?'Minus ':''}${terbilang(saldoAkhir)} Rupiah</td></tr>
     </table>
+    </div>
     <div style="font-size:12px;font-weight:600;margin-bottom:6px;">Rincian transaksi (${list.length})</div>
-    <table style="width:100%;border-collapse:collapse;font-size:11px;margin-bottom:28px;">
+    <table style="width:100%;border-collapse:separate;border-spacing:0;font-size:10.5px;margin-bottom:28px;border:1px solid #182430;">
       <thead><tr>
-        <th style="text-align:left;border-bottom:1px solid #182430;padding:4px;">Tanggal</th>
-        <th style="text-align:left;border-bottom:1px solid #182430;padding:4px;">Kategori</th>
-        <th style="text-align:left;border-bottom:1px solid #182430;padding:4px;">Keterangan</th>
-        <th style="text-align:right;border-bottom:1px solid #182430;padding:4px;">Nilai</th>
+        <th style="width:10%;text-align:left;border-bottom:1px solid #182430;border-right:1px solid #999;padding:5px 4px;background:#F2F2F2;">Tanggal</th>
+        <th style="width:15%;text-align:left;border-bottom:1px solid #182430;border-right:1px solid #999;padding:5px 4px;background:#F2F2F2;">Kategori</th>
+        <th style="text-align:left;border-bottom:1px solid #182430;border-right:1px solid #999;padding:5px 4px;background:#F2F2F2;">Keterangan</th>
+        <th style="width:13%;text-align:right;border-bottom:1px solid #182430;border-right:1px solid #999;padding:5px 4px;background:#F2F2F2;">Debit</th>
+        <th style="width:13%;text-align:right;border-bottom:1px solid #182430;border-right:1px solid #999;padding:5px 4px;background:#F2F2F2;">Kredit</th>
+        <th style="width:14%;text-align:right;border-bottom:1px solid #182430;padding:5px 4px;background:#F2F2F2;">Saldo</th>
       </tr></thead>
       <tbody>
-        ${list.map(t=>`<tr>
-          <td style="padding:4px;border-bottom:1px solid #eee;">${fmtDate(t.tanggal)}</td>
-          <td style="padding:4px;border-bottom:1px solid #eee;">${t.kategori}</td>
-          <td style="padding:4px;border-bottom:1px solid #eee;">${escapeHtml(t.keterangan||'')}</td>
-          <td style="padding:4px;border-bottom:1px solid #eee;text-align:right;">${fmtRp(nilaiTx(t))}</td>
-        </tr>`).join('') || '<tr><td colspan="4" style="padding:8px;color:#888;">Tidak ada transaksi bulan ini.</td></tr>'}
+        ${(()=>{
+          // Baris "Sisa bulan sebelumnya" jadi titik awal saldo berjalan, supaya angka Saldo
+          // di baris pertama transaksi langsung nyambung dengan saldo akhir bulan lalu (bukan
+          // mulai dari nol) -- pembaca bisa lacak naik-turunnya saldo persis transaksi per transaksi.
+          let saldoJalan = saldoAwal;
+          const rows = [`<tr style="background:#FAFAF6;">
+            <td colspan="3" style="padding:5px 4px;border-right:1px solid #999;border-bottom:1px solid #999;font-style:italic;color:#555;">Sisa bulan sebelumnya</td>
+            <td style="padding:5px 4px;border-right:1px solid #999;border-bottom:1px solid #999;"></td>
+            <td style="padding:5px 4px;border-right:1px solid #999;border-bottom:1px solid #999;"></td>
+            <td style="padding:5px 4px;border-bottom:1px solid #999;text-align:right;font-style:italic;color:#555;">${fmtRp(saldoJalan)}</td>
+          </tr>`];
+          list.forEach((t,i)=>{
+            const nilai = nilaiTx(t);
+            const pengeluaran = t.jenis === 'pengeluaran';
+            saldoJalan += pengeluaran ? -nilai : nilai;
+            // Kategori OPS JETLINER/TILONGKABILA/SANUS 78 sudah menyebut nama kapalnya sendiri --
+            // catatan kapal cuma ditempel kalau kategorinya PEMASUKAN/BIAYA LAINNYA (tidak menyebut
+            // kapal) DAN nama kapalnya memang diisi saat input, supaya tidak dobel & tidak ada
+            // "(kosong)" yang mengganggu di baris yang tidak relevan.
+            const perluCatatanKapal = (t.kategori==='PEMASUKAN' || t.kategori==='BIAYA LAINNYA') && t.namaKapal;
+            const zebra = i%2===1 ? 'background:#FAFAFA;' : '';
+            rows.push(`<tr style="${zebra}">
+              <td style="padding:5px 4px;border-right:1px solid #999;border-bottom:1px solid #bbb;">${fmtDate(t.tanggal)}</td>
+              <td style="padding:5px 4px;border-right:1px solid #999;border-bottom:1px solid #bbb;">${escapeHtml(t.kategori)}</td>
+              <td style="padding:5px 4px;border-right:1px solid #999;border-bottom:1px solid #bbb;">${escapeHtml(t.keterangan||'')}${perluCatatanKapal ? ` <span style="color:#888;font-size:9px;">(${escapeHtml(t.namaKapal)})</span>` : ''}</td>
+              <td style="padding:5px 4px;border-right:1px solid #999;border-bottom:1px solid #bbb;text-align:right;">${pengeluaran ? '' : fmtRp(nilai)}</td>
+              <td style="padding:5px 4px;border-right:1px solid #999;border-bottom:1px solid #bbb;text-align:right;">${pengeluaran ? '-'+fmtRp(nilai) : ''}</td>
+              <td style="padding:5px 4px;border-bottom:1px solid #bbb;text-align:right;">${fmtRp(saldoJalan)}</td>
+            </tr>`);
+          });
+          if(!list.length){
+            rows.push('<tr><td colspan="6" style="padding:8px;color:#888;">Tidak ada transaksi bulan ini.</td></tr>');
+          }
+          return rows.join('');
+        })()}
       </tbody>
+      <tfoot>
+        <tr style="background:#F2F2F2;">
+          <td colspan="5" style="padding:6px 4px;border-top:1px solid #182430;border-right:1px solid #999;text-align:right;font-weight:700;">SALDO AKHIR</td>
+          <td style="padding:6px 4px;border-top:1px solid #182430;text-align:right;font-weight:700;">${fmtRp(saldoAkhir)}</td>
+        </tr>
+      </tfoot>
     </table>
-    <table style="width:100%;border-collapse:collapse;border:1px solid #111;font-size:11px;">
+    <table style="width:100%;border-collapse:separate;border-spacing:0;font-size:11px;">
       <tr>
-        <td style="width:33%;border-right:1px solid #111;padding:10px;vertical-align:top;">
+        <td style="width:33%;border:1px solid #111;border-right:none;padding:10px;vertical-align:top;">
           <div style="color:#333;">Date</div>
           <div style="text-align:center;font-weight:700;margin:4px 0 6px;">PETUGAS</div>
           <div style="display:flex;justify-content:center;align-items:center;min-height:136px;margin-bottom:6px;">
@@ -4151,7 +4523,7 @@ function buildPdfPrintDiv(bulan){
           </div>
           <div style="text-align:center;border-top:1px solid #111;padding-top:4px;font-weight:600;">${escapeHtml(petugasNames.join(', ')||'-')}</div>
         </td>
-        <td style="width:34%;border-right:1px solid #111;padding:10px;vertical-align:top;">
+        <td style="width:34%;border:1px solid #111;border-right:none;padding:10px;vertical-align:top;">
           <div style="color:#333;">Date</div>
           <div style="text-align:center;font-weight:700;margin:4px 0 6px;">KA. OPERASI DAN PELAYANAN</div>
           <div style="display:flex;justify-content:center;align-items:center;min-height:136px;margin-bottom:6px;">
@@ -4159,7 +4531,7 @@ function buildPdfPrintDiv(bulan){
           </div>
           <div style="text-align:center;border-top:1px solid #111;padding-top:4px;font-weight:600;">${escapeHtml(kaopsNames.join(', ')||(approved?'':'-'))}</div>
         </td>
-        <td style="width:33%;padding:10px;vertical-align:top;">
+        <td style="width:33%;border:1px solid #111;padding:10px;vertical-align:top;">
           <div style="color:#333;">&nbsp;</div>
           <div style="text-align:center;font-weight:700;margin:4px 0 6px;">STATUS</div>
           <div style="display:flex;justify-content:center;align-items:center;min-height:64px;margin-bottom:6px;">
@@ -4173,9 +4545,6 @@ function buildPdfPrintDiv(bulan){
         </td>
       </tr>
     </table>
-    <div class="brk-atom" style="display:flex;justify-content:space-between;margin-top:16px;font-size:10px;color:#888;">
-      <div>Dicetak ${new Date().toLocaleString('id-ID')} melalui Aplikasi Sistem Operasional</div>
-    </div>
   `);
   document.body.appendChild(printDiv);
   if(petugasNames.length){
@@ -4205,10 +4574,38 @@ function buildPdfPrintDiv(bulan){
 /* ===== PDF pagination A4 (aman: tidak memotong baris tabel, tanpa duplikat) ===== */
 const PDF_MARGIN_MM = 10;
 
+// Ukuran logo kop pada HALAMAN PERTAMA tiap laporan (dikonversi dari px CSS asli ke mm,
+// mengikuti lebar printDiv & orientasi masing-masing) supaya logo yang digambar ulang di
+// halaman lanjutan berukuran & posisinya SAMA seperti halaman pertama -- jadi tampilan
+// kop di setiap halaman konsisten, hanya isi laporan di bawahnya yang berbeda.
+//
+// CATATAN PENTING: reserveMM (jalur kosong di puncak halaman lanjutan utk logo + jarak aman
+// ke isi laporan) SENGAJA TIDAK di-hardcode per laporan lagi -- dulu ada nilai tetap di sini
+// yang gampang "ketinggalan" kalau pelniH/danantaraH di atas berubah, sehingga logo bisa
+// numpuk/ketiban isi laporan. Sekarang dihitung OTOMATIS oleh headerLogoReserveMM() di bawah:
+// tinggi logo terbesar + jarak aman tetap (~1-2 spasi baris), jadi selalu ikut menyesuaikan.
+const PDF_HEADER_LOGO = {
+  arusKas:      { layout:'pelni-left',      pelniH:8.1 },
+  kasKeagenan:  { layout:'pelni-left',      pelniH:8.1 },
+  kunjungan:    { layout:'danantara-pelni', danantaraH:6.7, pelniH:7.7 },
+  paspel:       { layout:'danantara-pelni', danantaraH:5.5, pelniH:6.3 },
+  missKeagenan: { layout:'pelni-right',     pelniH:7.7 },
+  tally:        { layout:'tally-right',     pelniH:15.4 }
+};
+// Jarak aman tetap antara bagian bawah logo kop dan baris pertama isi laporan di halaman
+// lanjutan, kira-kira 1-2 spasi baris teks laporan (~3.5mm/baris pada font 10-11px).
+const PDF_HEADER_LOGO_GAP_MM = 5;
+function headerLogoReserveMM(cfg){
+  if(!cfg) return 0;
+  const maxLogoH = Math.max(cfg.pelniH||0, cfg.danantaraH||0);
+  return maxLogoH + PDF_HEADER_LOGO_GAP_MM;
+}
+
 // Menentukan titik potong halaman yang jatuh di celah antar-elemen (tr / .brk-atom),
 // bukan di tengah elemen, supaya baris tabel/blok tidak pernah terpotong.
-function computePdfPageBreaks(printDiv, canvas, orientation){
+function computePdfPageBreaks(printDiv, canvas, orientation, continuationReserveMM){
   orientation = orientation || 'p';
+  continuationReserveMM = continuationReserveMM || 0;
   const pageWmm = orientation==='l' ? 297 : 210;
   const pageHmm = orientation==='l' ? 210 : 297;
   const containerRect = printDiv.getBoundingClientRect();
@@ -4216,7 +4613,12 @@ function computePdfPageBreaks(printDiv, canvas, orientation){
   const contentWidthMM = pageWmm - PDF_MARGIN_MM*2;
   const contentHeightMM = pageHmm - PDF_MARGIN_MM*2;
   const pxPerMM = canvas.width / contentWidthMM;
-  const pageHeightPx = contentHeightMM * pxPerMM;
+  // Halaman pertama pakai tinggi penuh (kop aslinya sudah menyatu di dalam konten).
+  // Halaman ke-2 dst dikurangi continuationReserveMM supaya ada jalur kosong di puncak
+  // halaman utk logo kop yang digambar ulang (lihat PDF_HEADER_LOGO & drawPdfHeaderLogos),
+  // tanpa numpuk/kejepit dengan isi laporan.
+  const firstPageHeightPx = contentHeightMM * pxPerMM;
+  const laterPageHeightPx = Math.max(1, contentHeightMM - continuationReserveMM) * pxPerMM;
   const totalHeightPx = canvas.height;
 
   const atoms = Array.from(printDiv.querySelectorAll('tr, .brk-atom'));
@@ -4232,6 +4634,7 @@ function computePdfPageBreaks(printDiv, canvas, orientation){
   let cursor = 0;
   const MAX_PAGES = 60;
   while(cursor < totalHeightPx - 0.5 && breaks.length < MAX_PAGES){
+    const pageHeightPx = breaks.length===0 ? firstPageHeightPx : laterPageHeightPx;
     let target = Math.min(cursor + pageHeightPx, totalHeightPx);
     if(target >= totalHeightPx - 0.5){
       breaks.push(totalHeightPx);
@@ -4264,29 +4667,53 @@ function sliceCanvasSegment(canvas, fromPx, toPx){
   seg.width = canvas.width;
   seg.height = h;
   const ctx = seg.getContext('2d');
-  ctx.fillStyle = '#ffffff';
-  ctx.fillRect(0,0,seg.width,seg.height);
+  // CATATAN: sengaja TIDAK mengisi latar putih opaque di sini (dulu ctx.fillRect
+  // putih penuh) supaya bagian kosong/putih pada tiap potongan halaman tetap
+  // transparan. Dengan begitu, watermark yang digambar LEBIH DULU di halaman PDF
+  // (lihat buildPagedA4Pdf) tetap terlihat di area kosong, TAPI otomatis tertutup
+  // rapi oleh tulisan/logo asli laporan (yang opaque) begitu potongan gambar ini
+  // ditumpuk di atasnya -- hasilnya watermark tampak "di belakang" tulisan & logo,
+  // dan tulisan & logo tetap jelas/tidak buram.
   ctx.drawImage(canvas, 0, Math.round(fromPx), canvas.width, h, 0, 0, canvas.width, h);
   return seg;
 }
 
-function buildPagedA4Pdf(canvas, printDiv, orientation){
+// docLabel & watermarkMode dipakai utk menggambar watermark (logo+kode) LEBIH DULU di
+// tiap halaman, SEBELUM gambar konten laporan ditumpuk di atasnya -- supaya watermark
+// selalu berada di BELAKANG tulisan & logo asli laporan (tulisan & logo tetap jelas/tajam),
+// namun tetap terlihat di bagian-bagian halaman yang kosong (sesuai tujuan anti-pemalsuan).
+// headerLogoCfg (lihat PDF_HEADER_LOGO) dipakai utk menyisakan jalur kosong di puncak
+// halaman ke-2 dst supaya logo kop yang digambar ulang (oleh finalizePdfSecurity) muat
+// dengan ukuran & posisi yang meniru halaman pertama, tanpa numpuk isi laporan.
+async function buildPagedA4Pdf(canvas, printDiv, orientation, docLabel, watermarkMode, headerLogoCfg){
   orientation = orientation || 'p';
   const pageWmm = orientation==='l' ? 297 : 210;
-  const { breaks, pxPerMM } = computePdfPageBreaks(printDiv, canvas, orientation);
+  const pageHmm = orientation==='l' ? 210 : 297;
+  const reserveMM = headerLogoReserveMM(headerLogoCfg);
+  const { breaks, pxPerMM } = computePdfPageBreaks(printDiv, canvas, orientation, reserveMM);
   const { jsPDF } = window.jspdf;
   const pdf = new jsPDF(orientation,'mm','a4');
   const contentWidthMM = pageWmm - PDF_MARGIN_MM*2;
+  const verif = await generateDocVerification(docLabel||'Dokumen');
 
   let cursor = 0;
   breaks.forEach((breakPx, idx)=>{
     const seg = sliceCanvasSegment(canvas, cursor, breakPx);
     const segHeightMM = seg.height / pxPerMM;
     if(idx > 0) pdf.addPage();
+    if(watermarkMode==='tally-single'){
+      drawPdfWatermarkTallySingleLogo(pdf, pageWmm, pageHmm);
+    }else{
+      drawPdfWatermark(pdf, pageWmm, pageHmm, verif.kode);
+    }
+    const contentTopMM = idx > 0 ? PDF_MARGIN_MM + reserveMM : PDF_MARGIN_MM;
     const imgData = seg.toDataURL('image/png');
-    pdf.addImage(imgData, 'PNG', PDF_MARGIN_MM, PDF_MARGIN_MM, contentWidthMM, segHeightMM);
+    pdf.addImage(imgData, 'PNG', PDF_MARGIN_MM, contentTopMM, contentWidthMM, segHeightMM);
     cursor = breakPx;
   });
+  // simpan kode verifikasi supaya finalizePdfSecurity() memakai kode YANG SAMA
+  // (bukan bikin kode baru) utk blok QR/hologram di halaman terakhir.
+  pdf._verif = verif;
   return pdf;
 }
 
@@ -4317,7 +4744,7 @@ function formatVerifCode(hex){
 }
 async function generateDocVerification(docLabel){
   const waktu = new Date();
-  const petugas = (typeof CURRENT_USER!=='undefined' && CURRENT_USER) ? (CURRENT_USER.name+' ('+CURRENT_USER.nrp+')') : '-';
+  const petugas = (typeof CURRENT_USER!=='undefined' && CURRENT_USER) ? CURRENT_USER.name : '-';
   const raw = docLabel+'|'+waktu.toISOString()+'|'+petugas+'|'+Math.random().toString(36).slice(2)+'|'+Math.random().toString(36).slice(2);
   const hex = await sha256HexSafe(raw);
   return { kode: formatVerifCode(hex), waktu, petugas };
@@ -4359,11 +4786,12 @@ function drawPdfWatermark(pdf, pageWmm, pageHmm, kode){
   const logoH = logoW * logoAspect;
   const angle = 25;
   const stepX = 50, stepY = 46;
+  const activeWatermarkLogo = getWatermarkLogo();
   for(let row=0, y=-pageHmm*0.5; y<pageHmm*1.5; y+=stepY, row++){
     const offsetX = (row % 2) * (stepX/2);
     for(let x=-pageWmm*0.5+offsetX; x<pageWmm*1.5; x+=stepX){
       try{
-        pdf.addImage(WATERMARK_LOGO_GRAY, 'PNG', x, y, logoW, logoH, undefined, 'NONE', angle);
+        pdf.addImage(activeWatermarkLogo, 'PNG', x, y, logoW, logoH, undefined, 'NONE', angle);
       }catch(e){}
     }
   }
@@ -4415,11 +4843,15 @@ function drawPdfWatermarkTallySingleLogo(pdf, pageWmm, pageHmm){
   // logo itu sendiri (kepala segitiga + ekor lengkung tipis), bukan dari
   // salinan logo yang benar-benar dicerminkan -- versi seragam (tanpa flip)
   // ini yang paling mendekati & paling rapi dibanding versi flip sebelumnya.
+  // Logo yang dipakai di sini bisa diganti Admin khusus untuk Tally Muat/Bongkar
+  // lewat menu Pengaturan > Pengaturan Logo (kalau belum diatur, memakai logo
+  // watermark umum supaya tata letak & tampilan tetap seperti sebelumnya).
+  const activeTallyLogo = getTallyLogo();
   for(let row=0, y=-pageHmm*0.5; y<pageHmm*1.5; y+=stepY, row++){
     const offsetX = (row*shiftPerRow) % stepX;
     for(let x=-pageWmm*0.5+offsetX; x<pageWmm*1.5; x+=stepX){
       try{
-        pdf.addImage(WATERMARK_LOGO_GRAY, 'PNG', x, y, logoW, logoH, undefined, 'NONE', angle);
+        pdf.addImage(activeTallyLogo, 'PNG', x, y, logoW, logoH, undefined, 'NONE', angle);
       }catch(e){}
     }
   }
@@ -4427,6 +4859,69 @@ function drawPdfWatermarkTallySingleLogo(pdf, pageWmm, pageHmm){
     pdf.setGState(new pdf.GState({opacity:1}));
     pdf.restoreGraphicsState();
   }catch(e){}
+}
+// Mengembalikan ukuran ASLI (px) sebuah gambar data-URL, dipakai supaya lebar logo yang
+// digambar ulang di halaman lanjutan PDF selalu mengikuti rasio SEBENARNYA dari gambar yang
+// sedang aktif dipakai (baik logo bawaan sistem maupun hasil upload Admin lewat menu
+// Pengaturan Logo) -- bukan angka rasio yang ditebak/di-hardcode, yang gampang salah &
+// gampang jadi usang begitu logonya diganti.
+function getImageNaturalSize(dataUrl){
+  return new Promise((resolve)=>{
+    if(!dataUrl){ resolve(null); return; }
+    const img = new Image();
+    img.onload = ()=> resolve({width: img.naturalWidth, height: img.naturalHeight});
+    img.onerror = ()=> resolve(null);
+    img.src = dataUrl;
+  });
+}
+// Menggambar ulang logo kop (Danantara &/ Pelni/Tally) di halaman lanjutan (halaman ke-2
+// dst) sebuah PDF laporan, supaya logo tetap konsisten muncul walau kop asli laporan (hasil
+// render HTML) hanya ada di halaman pertama.
+//
+// cfg (lihat PDF_HEADER_LOGO) berisi logo APA SAJA & di sisi mana yang digambar ulang, PLUS
+// tingginya dalam mm -- disesuaikan per laporan supaya PERSIS menyamai tinggi kop asli di
+// halaman pertama laporan yang bersangkutan. LEBARNYA dihitung dari `sizes` (ukuran asli
+// gambar dalam px, lihat getImageNaturalSize) supaya proporsinya selalu benar & otomatis
+// ikut menyesuaikan kalau Admin mengganti logo lewat Pengaturan Logo -- sebelumnya lebar
+// dihitung dari rasio yang di-hardcode dan ternyata SALAH (rasio logo Pelni tertukar dengan
+// rasio logo watermark yang bentuknya beda jauh), itu sebabnya logo di halaman ke-2 dst
+// tampil gepeng/beda ukuran dari halaman pertama.
+//
+// Posisinya ditaruh mulai dari y = PDF_MARGIN_MM, yaitu baris yang sama dengan tempat isi
+// laporan mulai digambar di halaman pertama -- jalur kosong di atas isi laporan pada halaman
+// ke-2 dst (lihat headerLogoReserveMM & buildPagedA4Pdf) sudah dihitung otomatis supaya pas
+// muat untuk logo ini, supaya tidak pernah tertindih/kejepit oleh isi laporan di bawahnya.
+function drawPdfHeaderLogos(pdf, pageWmm, cfg, sizes){
+  if(!cfg) return;
+  const topY = PDF_MARGIN_MM;
+  sizes = sizes || {};
+  // Kalau ukuran asli gagal diukur (mis. gambar gagal dimuat), jatuh ke rasio landscape
+  // umum (~3:1) sebagai jalan cadangan supaya logo tidak digambar dengan lebar 0/aneh.
+  const widthFromHeight = (heightMM, natSize)=>{
+    const ratio = (natSize && natSize.height) ? (natSize.width / natSize.height) : 3;
+    return heightMM * ratio;
+  };
+
+  if(cfg.layout==='danantara-pelni'){
+    const danantaraH = cfg.danantaraH, danantaraW = widthFromHeight(danantaraH, sizes.danantara);
+    const pelniH = cfg.pelniH, pelniW = widthFromHeight(pelniH, sizes.pelni);
+    try{ pdf.addImage(getDanantaraLogo(), 'PNG', PDF_MARGIN_MM, topY, danantaraW, danantaraH, undefined, 'FAST'); }catch(e){}
+    try{ pdf.addImage(getPelniLogo(), 'PNG', pageWmm - PDF_MARGIN_MM - pelniW, topY, pelniW, pelniH, undefined, 'FAST'); }catch(e){}
+  }else if(cfg.layout==='tally-right'){
+    // Berita Acara Tally memakai logo TALLY sendiri (getTallyLogo(), bisa beda dari logo
+    // Pelni default kalau Admin sudah mengaturnya) -- dulu di sini salah memanggil
+    // getPelniLogo(), sehingga logo di halaman lanjutan bisa jadi gambar yang sama sekali
+    // berbeda dari kop asli di halaman pertama.
+    const tallyH = cfg.pelniH, tallyW = widthFromHeight(tallyH, sizes.tally);
+    try{ pdf.addImage(getTallyLogo(), 'PNG', pageWmm - PDF_MARGIN_MM - tallyW, topY, tallyW, tallyH, undefined, 'FAST'); }catch(e){}
+  }else if(cfg.layout==='pelni-right'){
+    const pelniH = cfg.pelniH, pelniW = widthFromHeight(pelniH, sizes.pelni);
+    try{ pdf.addImage(getPelniLogo(), 'PNG', pageWmm - PDF_MARGIN_MM - pelniW, topY, pelniW, pelniH, undefined, 'FAST'); }catch(e){}
+  }else{
+    // default & 'pelni-left'
+    const pelniH = cfg.pelniH, pelniW = widthFromHeight(pelniH, sizes.pelni);
+    try{ pdf.addImage(getPelniLogo(), 'PNG', PDF_MARGIN_MM, topY, pelniW, pelniH, undefined, 'FAST'); }catch(e){}
+  }
 }
 // Meterai/stempel hologram keaslian: lingkaran berlapis warna-warni ala hologram
 // + tulisan ASLI/TERVERIFIKASI, digambar langsung di atas dokumen PDF (selalu
@@ -4467,21 +4962,38 @@ function drawHologramSeal(pdf, cx, cy, r, kode){
 // Menambahkan watermark di semua halaman + blok kode verifikasi/QR + meterai hologram
 // di halaman terakhir. docLabel = string identitas dokumen (jenis laporan + periode/nomor)
 // yang ikut menentukan kode.
-async function finalizePdfSecurity(pdf, orientation, docLabel, watermarkMode){
+async function finalizePdfSecurity(pdf, orientation, docLabel, watermarkMode, headerLogoCfg){
   orientation = orientation || 'p';
   const pageWmm = orientation==='l' ? 297 : 210;
   const pageHmm = orientation==='l' ? 210 : 297;
-  const { kode, waktu, petugas } = await generateDocVerification(docLabel||'Dokumen');
+  // Kode verifikasi SUDAH dibuat & watermark-nya SUDAH digambar (di BELAKANG konten
+  // laporan, supaya tulisan & logo tetap jelas) oleh buildPagedA4Pdf() -- di sini kita
+  // pakai kode yang SAMA (pdf._verif) supaya blok QR/hologram di halaman terakhir
+  // konsisten dengan watermark yang sudah tercetak. Kalau karena satu-dua hal pdf._verif
+  // belum ada (mis. pdf dibuat lewat jalur lain), baru buat kode baru sebagai cadangan.
+  const { kode, waktu, petugas } = pdf._verif || await generateDocVerification(docLabel||'Dokumen');
   const totalPages = pdf.internal.getNumberOfPages();
+  // Ukur ukuran ASLI logo yang sedang aktif SEKALI SAJA di sini (bukan per-halaman) supaya
+  // drawPdfHeaderLogos bisa menghitung lebar yang proporsional dengan tinggi yang diminta,
+  // mengikuti gambar yang sungguh-sungguh dipakai saat ini (bawaan sistem atau hasil upload
+  // Admin lewat Pengaturan Logo) -- lihat catatan di drawPdfHeaderLogos.
+  let headerLogoSizes = null;
+  if(headerLogoCfg && totalPages>1){
+    const [pelniSize, danantaraSize, tallySize] = await Promise.all([
+      getImageNaturalSize(getPelniLogo()),
+      getImageNaturalSize(getDanantaraLogo()),
+      getImageNaturalSize(getTallyLogo())
+    ]);
+    headerLogoSizes = { pelni: pelniSize, danantara: danantaraSize, tally: tallySize };
+  }
   for(let p=1; p<=totalPages; p++){
     pdf.setPage(p);
-    // 'tally-single' = khusus Tally Muat/Bongkar: tetap pola logo berulang
-    // menyerong diagonal, TAPI tanpa lapisan teks "DOKUMEN ASLI" berulang.
-    if(watermarkMode==='tally-single'){
-      drawPdfWatermarkTallySingleLogo(pdf, pageWmm, pageHmm);
-    }else{
-      drawPdfWatermark(pdf, pageWmm, pageHmm, kode);
-    }
+    // Kop asli laporan (dengan logo Pelni & Danantara) hanya ikut terpotong ke
+    // halaman PERTAMA, karena berasal dari potongan canvas paling atas. Supaya
+    // logo Pelni & Danantara tetap muncul di halaman ke-2 dst -- masing-masing
+    // di posisinya sendiri (Danantara kiri, Pelni kanan) -- gambar ulang kecil
+    // di pojok atas setiap halaman selain halaman pertama.
+    if(p>1) drawPdfHeaderLogos(pdf, pageWmm, headerLogoCfg, headerLogoSizes);
   }
   pdf.setPage(totalPages);
   const qrText =
@@ -4522,28 +5034,82 @@ async function finalizePdfSecurity(pdf, orientation, docLabel, watermarkMode){
   pdf.setFont('helvetica','normal');
   pdf.setFontSize(6.5);
   pdf.setTextColor(90,90,90);
-  pdf.text('Dicetak '+waktu.toLocaleString('id-ID')+' oleh '+petugas, textX, boxY+10.5);
+  pdf.text('Dicetak '+waktu.toLocaleString('id-ID')+' oleh '+petugas+' melalui Aplikasi Sistem Operasional', textX, boxY+10.5);
   pdf.text('Dokumen sah bila kode & QR di atas sesuai catatan sistem. Perubahan pada isi dokumen membuat kode ini tidak berlaku (indikasi manipulasi). Pindai QR untuk melihat sertifikat keaslian.', textX, boxY+13.8, {maxWidth: boxW - (textX-boxX) - 20});
   return { kode, waktu };
 }
 
-function previewPdf(){
-  const bulan = document.getElementById('lap-month-select').value;
-  const printDiv = buildPdfPrintDiv(bulan);
-  html2canvas(printDiv, {scale:2, backgroundColor:'#ffffff'}).then(canvas=>{
+/**
+ * Cetak langsung dokumen PDF (instance jsPDF yang sudah jadi -- lengkap dengan watermark,
+ * QR verifikasi, dsb dari finalizePdfSecurity) lewat dialog cetak BAWAAN BROWSER, tanpa perlu
+ * file-nya diunduh dulu ke Download lalu dibuka manual. Dipakai bareng pdf.save() -- bukan
+ * pengganti -- supaya petugas bisa pilih "Unduh" atau "Cetak" sesuai kebutuhan saat itu.
+ *
+ * Caranya: taruh PDF-nya (sebagai blob URL) di dalam <iframe> tersembunyi, tunggu sampai
+ * betul-betul termuat, baru panggil print() dari window iframe itu -- ini trik yang paling
+ * konsisten jalan di Chrome/Edge (termasuk Android) tanpa membuka tab baru yang mengganggu.
+ * Kalau karena satu-dua hal iframe-nya gagal (mis. dibatasi browser tertentu), jalan
+ * cadangannya buka PDF di tab baru supaya petugas tetap bisa Ctrl+P/menu cetak dari sana.
+ */
+function cetakPdfLangsung(pdf){
+  try{
+    const blobUrl = pdf.output('bloburl');
+    const iframe = document.createElement('iframe');
+    iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden;';
+    iframe.src = blobUrl;
+    document.body.appendChild(iframe);
+    let sudahDicetak = false;
+    iframe.onload = function(){
+      if(sudahDicetak) return;
+      sudahDicetak = true;
+      try{
+        iframe.contentWindow.focus();
+        iframe.contentWindow.print();
+      }catch(e){
+        window.open(blobUrl, '_blank'); // jalan cadangan kalau print() dari iframe diblokir
+      }
+    };
+    // Jalan cadangan kalau event onload tidak pernah terpicu (mis. PDF besar/lambat termuat).
+    setTimeout(()=>{ if(!sudahDicetak){ sudahDicetak = true; window.open(blobUrl, '_blank'); } }, 4000);
+    // Bersihkan iframe & blob URL beberapa saat kemudian -- cukup lama supaya dialog cetak
+    // (yang waktunya di luar kendali kita, tergantung petugas) sempat muncul & dipakai dulu.
+    setTimeout(()=>{
+      if(iframe.parentNode) document.body.removeChild(iframe);
+      URL.revokeObjectURL(blobUrl);
+    }, 60000);
+  }catch(e){
+    toast('Gagal membuka dialog cetak: '+e.message);
+  }
+}
+
+/* ===== Aksi PDF generik (pratinjau / unduh / cetak) =====
+   Dipakai SEMUA laporan (Arus Kas, Kunjungan Kapal, Paspel, MISS Keagenan, Tally,
+   Kas Keagenan) supaya logic-nya cuma ditulis SEKALI di sini, bukan diulang-ulang di
+   setiap laporan (dulu tiap laporan punya salinan sendiri dari 3 fungsi ini). Yang beda
+   antar laporan (judul, catatan, orientasi, nama file, dst) cukup dikirim lewat cfg. */
+
+// Menampilkan modal pratinjau (gambar statis, TANPA watermark/QR -- itu baru ditambahkan
+// saat benar-benar diunduh/dicetak) dengan tombol Cetak & Unduh di bawahnya.
+function pdfPreviewModal(printDiv, cfg){
+  // windowWidth/windowHeight dikunci ke ukuran printDiv itu sendiri (bukan ikut lebar
+  // layar HP yang sempit) supaya hasil render html2canvas konsisten di semua perangkat --
+  // tanpa ini, di sebagian Android tata letak/kolom laporan bisa ikut menyempit/berantakan
+  // karena html2canvas memakai lebar viewport aktual sebagai acuan render.
+  html2canvas(printDiv, {scale:2, backgroundColor:null, windowWidth:printDiv.scrollWidth, windowHeight:printDiv.scrollHeight}).then(canvas=>{
     const imgData = canvas.toDataURL('image/png');
     document.body.removeChild(printDiv);
     document.getElementById('modal-root').innerHTML = `
       <div class="modal-overlay">
-        <div class="modal-box" style="max-width:640px;">
-          <h3>Pratinjau Laporan PDF — ${monthLabel(bulan)}</h3>
-          <p style="font-size:12.5px;color:var(--ink-soft);margin:-6px 0 14px;">Periksa kembali isi laporan sebelum diunduh. Nomor dokumen dan tanda tangan tercetak otomatis. PDF akan otomatis terbagi ke beberapa halaman A4 tanpa memotong baris data.</p>
-          <div style="max-height:58vh;overflow:auto;border:1px solid #E4DFCF;border-radius:4px;">
+        <div class="modal-box" style="max-width:${cfg.maxWidth||640}px;">
+          <h3>${cfg.title}</h3>
+          <p style="font-size:12.5px;color:var(--ink-soft);margin:-6px 0 14px;">${cfg.note}</p>
+          <div style="max-height:58vh;overflow:auto;-webkit-overflow-scrolling:touch;border:1px solid #E4DFCF;border-radius:4px;">
             <img src="${imgData}" style="width:100%;display:block;">
           </div>
           <div class="modal-actions">
             <button class="btn btn-ghost" onclick="closeModal()">Batal / Edit dulu</button>
-            <button class="btn btn-gold" onclick="confirmDownloadPdf('${bulan}')">Konfirmasi &amp; Unduh PDF</button>
+            <button class="btn btn-ghost" onclick="${cfg.cetakOnclick}">🖨️ Cetak</button>
+            <button class="btn btn-gold" onclick="${cfg.downloadOnclick}">Konfirmasi &amp; Unduh PDF</button>
           </div>
         </div>
       </div>
@@ -4553,28 +5119,160 @@ function previewPdf(){
     toast('Gagal membuat pratinjau: '+err.message);
   });
 }
+
+// Merender printDiv jadi PDF jadi (lengkap watermark di belakang konten, logo kop
+// halaman lanjutan, QR & meterai hologram) -- inti yang dipakai baik oleh unduh maupun cetak.
+async function pdfBuildAndSecure(printDiv, cfg){
+  const canvas = await html2canvas(printDiv, {scale:2, backgroundColor:null, windowWidth:printDiv.scrollWidth, windowHeight:printDiv.scrollHeight});
+  const pdf = await buildPagedA4Pdf(canvas, printDiv, cfg.orientation, cfg.docLabel, cfg.watermarkMode, cfg.headerLogoCfg);
+  document.body.removeChild(printDiv);
+  await finalizePdfSecurity(pdf, cfg.orientation, cfg.docLabel, cfg.watermarkMode, cfg.headerLogoCfg);
+  return pdf;
+}
+
+async function pdfDownload(printDiv, cfg, filename){
+  try{
+    const pdf = await pdfBuildAndSecure(printDiv, cfg);
+    pdf.save(filename);
+    toast('File PDF diunduh ('+pdf.internal.getNumberOfPages()+' halaman).');
+  }catch(err){
+    if(printDiv.parentNode) document.body.removeChild(printDiv);
+    toast('Gagal membuat PDF: '+err.message);
+  }
+}
+
+async function pdfCetak(printDiv, cfg){
+  try{
+    const pdf = await pdfBuildAndSecure(printDiv, cfg);
+    toast('Membuka dialog cetak…');
+    cetakPdfLangsung(pdf);
+  }catch(err){
+    if(printDiv.parentNode) document.body.removeChild(printDiv);
+    toast('Gagal membuat PDF: '+err.message);
+  }
+}
+
+function previewPdf(){
+  const bulan = document.getElementById('lap-month-select').value;
+  pdfPreviewModal(buildPdfPrintDiv(bulan), {
+    title:'Pratinjau Laporan PDF — '+monthLabel(bulan),
+    note:'Periksa kembali isi laporan sebelum diunduh. Nomor dokumen dan tanda tangan tercetak otomatis. PDF akan otomatis terbagi ke beberapa halaman A4 tanpa memotong baris data.',
+    maxWidth:640,
+    cetakOnclick:`confirmCetakPdf('${bulan}')`,
+    downloadOnclick:`confirmDownloadPdf('${bulan}')`
+  });
+}
 function confirmDownloadPdf(bulan){
   closeModal();
-  const printDiv = buildPdfPrintDiv(bulan);
-  html2canvas(printDiv, {scale:2, backgroundColor:'#ffffff'}).then(async canvas=>{
-    const pdf = buildPagedA4Pdf(canvas, printDiv);
-    document.body.removeChild(printDiv);
-    await finalizePdfSecurity(pdf, 'p', 'Laporan Arus Kas '+bulan);
-    pdf.save('Laporan_Arus_Kas_'+bulan+'.pdf');
-    toast('File PDF diunduh ('+pdf.internal.getNumberOfPages()+' halaman).');
-  }).catch(err=>{
-    document.body.removeChild(printDiv);
-    toast('Gagal membuat PDF: '+err.message);
-  });
+  pdfDownload(buildPdfPrintDiv(bulan), {orientation:'p', docLabel:'Laporan Arus Kas '+bulan, headerLogoCfg:PDF_HEADER_LOGO.arusKas}, 'Laporan_Arus_Kas_'+bulan+'.pdf');
+}
+function confirmCetakPdf(bulan){
+  closeModal();
+  pdfCetak(buildPdfPrintDiv(bulan), {orientation:'p', docLabel:'Laporan Arus Kas '+bulan, headerLogoCfg:PDF_HEADER_LOGO.arusKas});
 }
 
 /* ======================= PENGATURAN ======================= */
+/* ======================= CADANGAN DATA (BACKUP) — Admin =======================
+   Mengumpulkan data SEMUA modul yang sudah termuat di memori (semuanya dimuat
+   sekaligus saat login, lihat Promise.all di proses login) menjadi satu paket
+   cadangan. Diunduh langsung di browser (Blob), tidak menyentuh server sama sekali. */
+function kumpulkanSemuaDataUntukBackup(){
+  return {
+    _keterangan: 'Cadangan data Sistem Operasional Kendari (PELNI). Diekspor otomatis dari aplikasi.',
+    _diekspor_pada: new Date().toISOString(),
+    _diekspor_oleh: CURRENT_USER ? (CURRENT_USER.name+' ('+CURRENT_USER.nrp+')') : '-',
+    kasOperasional: DATA.transactions || [],
+    sisaAwal: DATA.sisaAwal || null,
+    monthlyApprovals: DATA.monthlyApprovals || {},
+    kunjunganKapal: KUNJUNGAN.records || [],
+    paspel: PASPEL.records || [],
+    missKeagenan: MISS_KEAGENAN.records || [],
+    tallyGeneralCargo: TALLY.records || [],
+    taliPasangLepas: (typeof TALI!=='undefined' ? TALI.records : []) || [],
+    kasKeagenan: KAS_KEAGENAN.records || [],
+    notaDinas: NOTA_DINAS.records || [],
+    pnbpKapal: PNBP.records || [],
+    dokumenKapalKonfigurasi: DOKUMEN_KAPAL.records || [],
+    penggunaAplikasi: (DATA.settings && DATA.settings.users || []).map(u=>({ nama:u.name, nrp:u.nrp, peran:u.role, admin:!!u.isAdmin, akses:u.access||null })),
+  };
+}
+function unduhCadanganJson(){
+  try{
+    const paket = kumpulkanSemuaDataUntukBackup();
+    const teks = JSON.stringify(paket, null, 2);
+    const blob = new Blob([teks], {type:'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const stempel = new Date().toISOString().slice(0,10);
+    a.href = url; a.download = `cadangan-sistem-kendari-${stempel}.json`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url), 4000);
+    toast('Cadangan lengkap (.json) berhasil diunduh.');
+  }catch(e){
+    toast('Gagal membuat cadangan: '+e.message);
+  }
+}
+function unduhCadanganExcel(){
+  try{
+    const paket = kumpulkanSemuaDataUntukBackup();
+    const wb = XLSX.utils.book_new();
+    const sheetDefs = [
+      ['Kas Operasional', paket.kasOperasional],
+      ['Kunjungan Kapal', paket.kunjunganKapal],
+      ['PASPEL', paket.paspel],
+      ['MISS Keagenan', paket.missKeagenan],
+      ['Tally General Cargo', paket.tallyGeneralCargo],
+      ['Tali Pasang-Lepas', paket.taliPasangLepas],
+      ['Kas Keagenan', paket.kasKeagenan],
+      ['Nota Dinas', paket.notaDinas],
+      ['PNBP Kapal', paket.pnbpKapal],
+      ['Dokumen Kapal (Konfig)', paket.dokumenKapalKonfigurasi],
+      ['Pengguna Aplikasi', paket.penggunaAplikasi],
+    ];
+    sheetDefs.forEach(([nama, rows])=>{
+      // Kolom objek/array bersarang (mis. baris muatan Tally) disederhanakan jadi teks JSON
+      // supaya tetap ikut dalam file Excel, bukan hilang begitu saja.
+      const rowsAman = (rows||[]).map(r=>{
+        const out = {};
+        Object.keys(r||{}).forEach(k=>{
+          const v = r[k];
+          out[k] = (v && typeof v==='object') ? JSON.stringify(v) : v;
+        });
+        return out;
+      });
+      const ws = rowsAman.length ? XLSX.utils.json_to_sheet(rowsAman) : XLSX.utils.aoa_to_sheet([['(Belum ada data)']]);
+      XLSX.utils.book_append_sheet(wb, ws, nama.slice(0,31)); // nama sheet Excel maksimal 31 karakter
+    });
+    const stempel = new Date().toISOString().slice(0,10);
+    XLSX.writeFile(wb, `ringkasan-semua-modul-${stempel}.xlsx`);
+    toast('Ringkasan semua modul (.xlsx) berhasil diunduh.');
+  }catch(e){
+    toast('Gagal membuat file Excel: '+e.message);
+  }
+}
 function renderPengaturan(c, actions){
   if(!CURRENT_USER.isAdmin){
     c.innerHTML = `<div class="empty-state"><p>Hanya Admin yang dapat mengubah pengaturan. KaOps hanya bertugas menyetujui (approve) laporan bulanan.</p></div>`;
     return;
   }
   c.innerHTML = `
+    <div class="card">
+      <p class="card-title">Cadangan Data (Backup)</p>
+      <p style="font-size:12.5px;color:var(--ink-soft);margin:-6px 0 14px;">
+        Unduh salinan SELURUH data di seluruh modul (Kas, Kunjungan, PASPEL, MISS Keagenan, Tally, Tali,
+        Kas Keagenan, Nota Dinas, PNBP, dan konfigurasi Dokumen Kapal) yang sedang termuat di aplikasi ini
+        saat ini juga. Simpan file ini di tempat aman (mis. Google Drive) sebagai cadangan darurat atau
+        untuk keperluan audit eksternal -- terpisah dari data yang tersimpan di server Supabase.
+      </p>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;">
+        <button class="btn btn-gold" onclick="unduhCadanganJson()">⬇ Unduh Cadangan Lengkap (.json)</button>
+        <button class="btn btn-ghost" onclick="unduhCadanganExcel()">⬇ Unduh Ringkasan Semua Modul (.xlsx)</button>
+      </div>
+      <p style="font-size:11.5px;color:var(--ink-soft);margin:10px 0 0;">
+        <b>.json</b> = cadangan presisi penuh, cocok untuk dipulihkan kembali ke sistem suatu saat nanti.
+        <b>.xlsx</b> = versi mudah dibaca manusia (satu sheet per modul), cocok untuk diperiksa atau dibagikan ke pihak lain.
+      </p>
+    </div>
     <div class="card">
       <p class="card-title">Saldo awal (bulan pertama pencatatan)</p>
       <div class="form-grid">
@@ -4584,13 +5282,12 @@ function renderPengaturan(c, actions){
       <button class="btn btn-gold" style="margin-top:14px;" onclick="saveSisaAwal()">Simpan saldo awal</button>
     </div>
     <div class="card">
-      <p class="card-title">Daftar NRP pengguna</p>
+      <p class="card-title">Daftar pengguna</p>
       <p style="font-size:12px;color:var(--ink-soft);margin:-8px 0 14px;">Peran (Petugas / Ka. Operasional / Giro (Kasir)) menentukan hak input &amp; approve. Admin adalah hak akses tambahan untuk membuka halaman Pengaturan ini, terlepas dari perannya, dan otomatis punya akses ke semua fitur. Untuk pengguna non-admin, atur sendiri fitur mana saja yang boleh diakses: Kas, Kunjungan, PASPEL, MISS Keagenan, Tally General Cargo, Kas Keagenan, Tracking Nota Dinas, Dokumen Keberangkatan Kapal, dan/atau Catatan Biaya PNBP Kapal — bisa satu saja, sebagian, atau semuanya. Akun <b>Giro (Kasir)</b> biasanya cukup diberi akses "PNBP Kapal" saja, tanpa akses Buku Kas Operasional penuh — dia berhak mengonfirmasi status pembayaran dari sisi kasir.</p>
       <table class="ledger">
-        <thead><tr><th>NRP</th><th>Nama</th><th>Peran</th><th>Admin</th><th>Kas</th><th>Kunjungan</th><th>PASPEL</th><th>MISS Keagenan</th><th>Tally</th><th>Kas Keagenan</th><th>Nota Dinas</th><th>Dokumen Kapal</th><th>PNBP Kapal</th><th></th></tr></thead>
+        <thead><tr><th>Nama</th><th>Peran</th><th>Admin</th><th>Kas</th><th>Kunjungan</th><th>PASPEL</th><th>MISS Keagenan</th><th>Tally</th><th>Kas Keagenan</th><th>Nota Dinas</th><th>Dokumen Kapal</th><th>PNBP Kapal</th><th></th></tr></thead>
         <tbody>
           ${DATA.settings.users.map((u,i)=>`<tr>
-            <td>${escapeHtml(u.nrp)}</td>
             <td class="name-cell">${escapeHtml(u.name)}</td>
             <td class="name-cell">${roleLabel(u.role)}</td>
             <td><button class="btn btn-sm ${u.isAdmin?'btn-gold':'btn-ghost'}" onclick="toggleAdmin(${i})">${u.isAdmin?'Ya, Admin':'Bukan admin'}</button></td>
@@ -4649,7 +5346,208 @@ function renderPengaturan(c, actions){
       </div>
       <button class="btn btn-gold" style="margin-top:14px;" onclick="addUser()">Tambah pengguna</button>
     </div>
+    <div class="card">
+      <p class="card-title">Pengaturan Logo</p>
+      <p style="font-size:12.5px;color:var(--ink-soft);margin:-8px 0 14px;">Ganti logo Pelni, logo Danantara, dan logo watermark yang tampil di semua laporan/dokumen PDF sesuai gambar yang diinginkan Admin. Logo Pelni &amp; Danantara akan tetap muncul di posisinya masing-masing (kiri &amp; kanan kop) walau laporan PDF terdiri dari beberapa halaman. Tata letak watermark (pola menyerong berulang) dibiarkan tetap seperti sebelumnya — hanya gambar logonya saja yang bisa diganti. Kolom "Logo khusus Tally Muat/Bongkar" hanya berlaku untuk watermark di halaman Cetak Tally Muat &amp; Cetak Tally Bongkar; bila dikosongkan, halaman tersebut memakai logo watermark umum di atas.</p>
+      <div class="form-grid">
+        <div class="form-field">
+          <label>Logo PELNI (kop laporan)</label>
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+            <img src="${getPelniLogo()}" style="height:40px;width:auto;background:#fff;border:1px solid #E4DFCF;border-radius:4px;padding:2px;">
+            <input type="file" accept="image/*" id="logo-file-pelni" style="max-width:220px;" onchange="handleLogoUpload('pelni', this)">
+            ${LOGO_SETTINGS.pelni ? `<button class="btn btn-sm btn-ghost" onclick="resetLogoSetting('pelni')">Kembalikan bawaan</button>` : ''}
+          </div>
+        </div>
+        <div class="form-field">
+          <label>Logo Danantara (kop laporan)</label>
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+            <img src="${getDanantaraLogo()}" style="height:26px;width:auto;background:#fff;border:1px solid #E4DFCF;border-radius:4px;padding:2px;">
+            <input type="file" accept="image/*" id="logo-file-danantara" style="max-width:220px;" onchange="handleLogoUpload('danantara', this)">
+            ${LOGO_SETTINGS.danantara ? `<button class="btn btn-sm btn-ghost" onclick="resetLogoSetting('danantara')">Kembalikan bawaan</button>` : ''}
+          </div>
+        </div>
+        <div class="form-field">
+          <label>Logo watermark (semua laporan)</label>
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+            <img src="${getWatermarkLogo()}" style="height:40px;width:auto;background:#eee;border:1px solid #E4DFCF;border-radius:4px;padding:2px;">
+            <input type="file" accept="image/*" id="logo-file-watermark" style="max-width:220px;" onchange="handleLogoUpload('watermark', this)">
+            ${LOGO_SETTINGS.watermark ? `<button class="btn btn-sm btn-ghost" onclick="resetLogoSetting('watermark')">Kembalikan bawaan</button>` : ''}
+          </div>
+        </div>
+        <div class="form-field">
+          <label>Logo khusus Tally Muat/Bongkar</label>
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+            <img src="${getTallyLogo()}" style="height:40px;width:auto;background:#eee;border:1px solid #E4DFCF;border-radius:4px;padding:2px;">
+            <input type="file" accept="image/*" id="logo-file-tally" style="max-width:220px;" onchange="handleLogoUpload('tally', this)">
+            ${LOGO_SETTINGS.tally ? `<button class="btn btn-sm btn-ghost" onclick="resetLogoSetting('tally')">Kembalikan bawaan</button>` : ''}
+          </div>
+        </div>
+      </div>
+    </div>
   `;
+}
+
+/* ======================= LOG AKTIVITAS (Admin) =======================
+   Menampilkan isi tabel audit_log yang SUDAH tercatat otomatis setiap kali ada
+   penyimpanan data (lihat auditedUpsert & logAudit di atas, serta trigger di sisi
+   Supabase pada 01-security-hardening.sql). Sebelumnya catatan ini hanya bisa
+   dilihat lewat dashboard Supabase langsung -- sekarang Admin bisa menelusurinya
+   dari dalam aplikasi: cari kata kunci, saring tanggal, dan muat bertahap (paging)
+   supaya tetap ringan walau catatannya sudah ribuan baris. */
+const LOG_AKTIVITAS_PAGE_SIZE = 50;
+let LOG_AKTIVITAS_CACHE = [];
+let LOG_AKTIVITAS_LOADED = 0;
+let LOG_AKTIVITAS_HAS_MORE = true;
+let LOG_AKTIVITAS_BUSY = false;
+let LOG_AKTIVITAS_SEARCH_T = null;
+
+function renderLogAktivitas(c, actions){
+  if(!CURRENT_USER.isAdmin){
+    c.innerHTML = `<div class="empty-state"><p>Hanya Admin yang dapat melihat log aktivitas.</p></div>`;
+    return;
+  }
+  actions.innerHTML = `<button class="btn btn-ghost btn-sm" onclick="loadLogAktivitas(true)">🔄 Muat ulang</button>`;
+  c.innerHTML = `
+    <div class="card">
+      <p style="font-size:12.5px;color:var(--ink-soft);margin:0 0 14px;">
+        Jejak setiap penyimpanan data di seluruh modul: siapa yang menyimpan, kapan, dan catatan singkat perubahannya.
+        Ini pelengkap yang mudah dibaca manusia -- catatan resmi & tak-terhapuskan tetap ada di tabel <span style="font-family:var(--font-mono);">audit_log</span> pada Supabase.
+      </p>
+      <div class="filter-row">
+        <input type="text" id="la-q" placeholder="Cari nama, NRP, catatan, atau modul..." style="min-width:220px;flex:1;" oninput="debounceLogAktivitasSearch()">
+        <label style="font-size:12px;color:var(--ink-soft);display:flex;align-items:center;gap:6px;">Dari
+          <input type="date" id="la-dari" onchange="loadLogAktivitas(true)">
+        </label>
+        <label style="font-size:12px;color:var(--ink-soft);display:flex;align-items:center;gap:6px;">s/d
+          <input type="date" id="la-sampai" onchange="loadLogAktivitas(true)">
+        </label>
+        <button class="btn btn-ghost btn-sm" onclick="resetLogAktivitasFilter()">Reset filter</button>
+      </div>
+      <div id="la-status" style="font-size:12px;color:var(--ink-soft);margin-bottom:10px;">Memuat log aktivitas...</div>
+      <div id="la-table-wrap"></div>
+      <div style="text-align:center;margin-top:14px;">
+        <button class="btn btn-ghost btn-sm" id="la-load-more" onclick="loadLogAktivitas(false)" style="display:none;">Muat lebih banyak</button>
+      </div>
+    </div>
+  `;
+  loadLogAktivitas(true);
+}
+function debounceLogAktivitasSearch(){
+  clearTimeout(LOG_AKTIVITAS_SEARCH_T);
+  LOG_AKTIVITAS_SEARCH_T = setTimeout(()=>loadLogAktivitas(true), 350);
+}
+function resetLogAktivitasFilter(){
+  const q = document.getElementById('la-q'); if(q) q.value='';
+  const d1 = document.getElementById('la-dari'); if(d1) d1.value='';
+  const d2 = document.getElementById('la-sampai'); if(d2) d2.value='';
+  loadLogAktivitas(true);
+}
+async function loadLogAktivitas(reset){
+  if(LOG_AKTIVITAS_BUSY) return;
+  if(reset){ LOG_AKTIVITAS_CACHE=[]; LOG_AKTIVITAS_LOADED=0; LOG_AKTIVITAS_HAS_MORE=true; }
+  if(!LOG_AKTIVITAS_HAS_MORE) return;
+  const statusEl = document.getElementById('la-status');
+  const moreBtn = document.getElementById('la-load-more');
+  if(!sbClient){
+    if(statusEl) statusEl.textContent = 'Supabase belum dikonfigurasi.';
+    return;
+  }
+  LOG_AKTIVITAS_BUSY = true;
+  if(statusEl) statusEl.textContent = reset ? 'Memuat log aktivitas...' : 'Memuat lebih banyak...';
+  if(moreBtn){ moreBtn.disabled = true; moreBtn.textContent = 'Memuat...'; }
+  try{
+    const q = (document.getElementById('la-q')?.value || '').trim();
+    const dari = document.getElementById('la-dari')?.value || '';
+    const sampai = document.getElementById('la-sampai')?.value || '';
+    let query = sbClient.from('audit_log').select('*').order('created_at', { ascending:false });
+    if(dari) query = query.gte('created_at', dari+'T00:00:00');
+    if(sampai) query = query.lte('created_at', sampai+'T23:59:59');
+    if(q){
+      const esc = q.replace(/[%,]/g, ' ').trim();
+      if(esc) query = query.or(`actor_name.ilike.%${esc}%,actor_nrp.ilike.%${esc}%,client_note.ilike.%${esc}%,storage_key.ilike.%${esc}%,table_name.ilike.%${esc}%,op.ilike.%${esc}%`);
+    }
+    query = query.range(LOG_AKTIVITAS_LOADED, LOG_AKTIVITAS_LOADED + LOG_AKTIVITAS_PAGE_SIZE - 1);
+    const { data, error } = await query;
+    if(error) throw error;
+    const rows = data || [];
+    LOG_AKTIVITAS_CACHE = LOG_AKTIVITAS_CACHE.concat(rows);
+    LOG_AKTIVITAS_LOADED += rows.length;
+    LOG_AKTIVITAS_HAS_MORE = rows.length === LOG_AKTIVITAS_PAGE_SIZE;
+    renderLogAktivitasTable();
+    if(statusEl) statusEl.textContent = LOG_AKTIVITAS_CACHE.length===0
+      ? 'Tidak ada aktivitas yang cocok.'
+      : `Menampilkan ${LOG_AKTIVITAS_CACHE.length} catatan aktivitas${LOG_AKTIVITAS_HAS_MORE ? ' (masih ada lagi)' : ''}.`;
+    if(moreBtn) moreBtn.style.display = LOG_AKTIVITAS_HAS_MORE ? '' : 'none';
+  }catch(e){
+    if(statusEl) statusEl.innerHTML = `Log aktivitas belum bisa dimuat: ${escapeHtml(e.message)}. Pastikan tabel <span style="font-family:var(--font-mono);">audit_log</span> sudah dibuat lewat <span style="font-family:var(--font-mono);">01-security-hardening.sql</span> di Supabase.`;
+  }finally{
+    LOG_AKTIVITAS_BUSY = false;
+    if(moreBtn){ moreBtn.disabled = false; moreBtn.textContent = 'Muat lebih banyak'; }
+  }
+}
+function fmtLogTimestamp(s){
+  if(!s) return '-';
+  const d = new Date(s);
+  if(isNaN(d)) return s;
+  return d.toLocaleString('id-ID',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
+}
+function logOpBadge(op){
+  const o = (op||'').toUpperCase();
+  const colorMap = { INSERT:'var(--brass-dark)', UPDATE:'var(--brass-dark)', DELETE:'var(--rust-dark)', CONFLICT_AUTO_RESYNC:'var(--rust-dark)', CLIENT_EVENT:'var(--ink-soft)' };
+  const bgMap = { INSERT:'rgba(184,146,47,.14)', UPDATE:'rgba(184,146,47,.14)', DELETE:'rgba(178,58,46,.10)', CONFLICT_AUTO_RESYNC:'rgba(178,58,46,.10)', CLIENT_EVENT:'rgba(24,36,48,.06)' };
+  const color = colorMap[o] || 'var(--ink-soft)';
+  const bg = bgMap[o] || 'rgba(24,36,48,.06)';
+  return `<span style="background:${bg};color:${color};font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:9px;white-space:nowrap;">${escapeHtml(op||'-')}</span>`;
+}
+function renderLogAktivitasTable(){
+  const wrap = document.getElementById('la-table-wrap');
+  if(!wrap) return;
+  if(LOG_AKTIVITAS_CACHE.length===0){
+    wrap.innerHTML = `<div class="empty-state"><p>Belum ada aktivitas yang tercatat, atau tidak cocok dengan filter.</p></div>`;
+    return;
+  }
+  wrap.innerHTML = `
+    <table class="ledger">
+      <thead><tr><th>Waktu</th><th>Oleh</th><th>Aksi</th><th>Modul / Kunci Data</th><th>Catatan</th></tr></thead>
+      <tbody>
+        ${LOG_AKTIVITAS_CACHE.map(r=>`<tr>
+          <td style="white-space:nowrap;font-family:var(--font-mono);font-size:11.5px;">${fmtLogTimestamp(r.created_at)}</td>
+          <td class="name-cell">${escapeHtml(r.actor_name||'-')}${r.actor_nrp?` <span style="color:var(--ink-soft);font-size:11px;">(${escapeHtml(r.actor_nrp)})</span>`:''}</td>
+          <td>${logOpBadge(r.op)}</td>
+          <td class="name-cell" style="font-family:var(--font-mono);font-size:11.5px;">${escapeHtml(r.storage_key || r.table_name || '-')}</td>
+          <td>${escapeHtml(r.client_note || '-')}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+  `;
+}
+// (kolom: 'pelni' | 'danantara' | 'watermark' | 'tally'). Tersimpan bersama (shared) untuk
+// semua pengguna aplikasi, sama seperti pengaturan lain.
+function handleLogoUpload(kolom, inputEl){
+  const file = inputEl.files && inputEl.files[0];
+  if(!file) return;
+  if(file.size > 3*1024*1024){
+    toast('Ukuran gambar terlalu besar (maks 3MB). Pilih gambar lain.');
+    inputEl.value = '';
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = function(e){
+    LOGO_SETTINGS[kolom] = e.target.result;
+    saveLogoSettings();
+    const label = kolom==='pelni' ? 'PELNI' : (kolom==='danantara' ? 'Danantara' : (kolom==='watermark' ? 'watermark' : 'Tally Muat/Bongkar'));
+    toast('Logo '+label+' berhasil diganti.');
+    render();
+  };
+  reader.onerror = function(){ toast('Gagal membaca file gambar.'); };
+  reader.readAsDataURL(file);
+}
+function resetLogoSetting(kolom){
+  LOGO_SETTINGS[kolom] = '';
+  saveLogoSettings();
+  const label = kolom==='pelni' ? 'PELNI' : (kolom==='danantara' ? 'Danantara' : (kolom==='watermark' ? 'watermark' : 'Tally Muat/Bongkar'));
+  toast('Logo '+label+' dikembalikan ke bawaan.');
+  render();
 }
 function saveSisaAwal(){
   DATA.sisaAwal = { keterangan: document.getElementById('s-ket').value.trim(), total: Number(document.getElementById('s-total').value||0) };
@@ -4891,10 +5789,10 @@ function kunjRowHtml(r){
     <td class="name-cell">${escapeHtml(r.muat||'-')}</td>
     <td class="name-cell">${escapeHtml(r.bongkar||'-')}</td>
     <td class="name-cell">${escapeHtml(r.tujuan||'-')}</td>
-    <td><div style="display:flex;gap:6px;">
+    <td>${canManageRecord(r) ? `<div style="display:flex;gap:6px;">
       <button class="btn btn-sm btn-ghost" onclick="editKunjungan('${r.id}')">Edit</button>
       <button class="btn btn-sm btn-rust" onclick="deleteKunjungan('${r.id}')">Hapus</button>
-    </div></td>
+    </div>` : `<span style="font-size:11px;color:var(--ink-soft);">Milik ${escapeHtml(r.dibuatOleh||'petugas lain')}</span>`}</td>
   </tr>`;
 }
 function editKunjungan(id){
@@ -5027,11 +5925,11 @@ function buildKunjunganPrintDiv(bulan){
   const headStyle = cellStyle+'background:#F2F2F2;font-weight:700;text-align:center;';
 
   const printDiv = document.createElement('div');
-  printDiv.style.cssText = 'position:fixed;left:-9999px;top:0;width:1080px;background:#fff;color:#111;padding:26px;font-family:Arial,Helvetica,sans-serif;';
+  printDiv.style.cssText = 'position:fixed;left:-9999px;top:0;width:1080px;background:transparent;color:#111;padding:26px;font-family:Arial,Helvetica,sans-serif;';
   printDiv.innerHTML = wrapWithLogoWatermark(`
     <div class="brk-atom" style="display:flex;align-items:center;gap:14px;margin-bottom:10px;">
       <div style="flex-shrink:0;width:150px;">
-        <img src="${DANANTARA_LOGO}" alt="Danantara Indonesia" style="height:26px;width:auto;">
+        <img src="${getDanantaraLogo()}" alt="Danantara Indonesia" style="height:26px;width:auto;">
       </div>
       <div style="flex:1;text-align:center;">
         <div style="font-family:Arial,sans-serif;font-weight:700;font-size:13.5px;color:#111;line-height:1.4;">
@@ -5040,14 +5938,14 @@ function buildKunjunganPrintDiv(bulan){
         </div>
       </div>
       <div style="flex-shrink:0;width:150px;text-align:right;">
-        <img src="${PELNI_LOGO}" alt="PELNI" style="height:30px;width:auto;">
+        <img src="${getPelniLogo()}" alt="PELNI" style="height:30px;width:auto;">
       </div>
     </div>
     <div class="brk-atom" style="font-size:10.5px;margin-bottom:12px;">
       <div><span style="display:inline-block;width:130px;">NAMA PERUSAHAAN</span>: ${escapeHtml(KUNJUNGAN.namaResmi||'-')}</div>
       <div><span style="display:inline-block;width:130px;">BULAN / TAHUN</span>: ${monthLabel(bulan)}</div>
     </div>
-    <table style="width:100%;border-collapse:collapse;">
+    <table style="width:100%;border-collapse:separate;border-spacing:0;">
       <thead>
         <tr>
           <th style="${headStyle}width:32px;">NO</th>
@@ -5088,52 +5986,27 @@ function buildKunjunganPrintDiv(bulan){
         ${signatureBlockHtml(KUNJUNGAN.pejabat?.nama, KUNJUNGAN.pejabat?.jabatan)}
       </div>
     </div>
-    <div class="brk-atom" style="margin-top:14px;font-size:9px;color:#888;">
-      Dicetak ${new Date().toLocaleString('id-ID')} melalui Aplikasi Sistem Operasional
-    </div>
   `);
   document.body.appendChild(printDiv);
   return printDiv;
 }
 function previewKunjunganPdf(){
   const bulan = KUNJ_SELECTED_BULAN;
-  const printDiv = buildKunjunganPrintDiv(bulan);
-  html2canvas(printDiv, {scale:2, backgroundColor:'#ffffff'}).then(canvas=>{
-    const imgData = canvas.toDataURL('image/png');
-    document.body.removeChild(printDiv);
-    document.getElementById('modal-root').innerHTML = `
-      <div class="modal-overlay">
-        <div class="modal-box" style="max-width:760px;">
-          <h3>Pratinjau Laporan Kunjungan Kapal — ${monthLabel(bulan)}</h3>
-          <p style="font-size:12.5px;color:var(--ink-soft);margin:-6px 0 14px;">PDF akan otomatis terbagi ke beberapa halaman A4 landscape tanpa memotong baris data.</p>
-          <div style="max-height:58vh;overflow:auto;border:1px solid #E4DFCF;border-radius:4px;">
-            <img src="${imgData}" style="width:100%;display:block;">
-          </div>
-          <div class="modal-actions">
-            <button class="btn btn-ghost" onclick="closeModal()">Batal / Edit dulu</button>
-            <button class="btn btn-gold" onclick="confirmDownloadKunjunganPdf('${bulan}')">Konfirmasi &amp; Unduh PDF</button>
-          </div>
-        </div>
-      </div>
-    `;
-  }).catch(err=>{
-    document.body.removeChild(printDiv);
-    toast('Gagal membuat pratinjau: '+err.message);
+  pdfPreviewModal(buildKunjunganPrintDiv(bulan), {
+    title:'Pratinjau Laporan Kunjungan Kapal — '+monthLabel(bulan),
+    note:'PDF akan otomatis terbagi ke beberapa halaman A4 landscape tanpa memotong baris data.',
+    maxWidth:760,
+    cetakOnclick:`confirmCetakKunjunganPdf('${bulan}')`,
+    downloadOnclick:`confirmDownloadKunjunganPdf('${bulan}')`
   });
 }
 function confirmDownloadKunjunganPdf(bulan){
   closeModal();
-  const printDiv = buildKunjunganPrintDiv(bulan);
-  html2canvas(printDiv, {scale:2, backgroundColor:'#ffffff'}).then(async canvas=>{
-    const pdf = buildPagedA4Pdf(canvas, printDiv, 'l');
-    document.body.removeChild(printDiv);
-    await finalizePdfSecurity(pdf, 'l', 'Laporan Kunjungan Kapal '+bulan);
-    pdf.save('Laporan_Kunjungan_Kapal_'+bulan+'.pdf');
-    toast('File PDF diunduh ('+pdf.internal.getNumberOfPages()+' halaman).');
-  }).catch(err=>{
-    document.body.removeChild(printDiv);
-    toast('Gagal membuat PDF: '+err.message);
-  });
+  pdfDownload(buildKunjunganPrintDiv(bulan), {orientation:'l', docLabel:'Laporan Kunjungan Kapal '+bulan, headerLogoCfg:PDF_HEADER_LOGO.kunjungan}, 'Laporan_Kunjungan_Kapal_'+bulan+'.pdf');
+}
+function confirmCetakKunjunganPdf(bulan){
+  closeModal();
+  pdfCetak(buildKunjunganPrintDiv(bulan), {orientation:'l', docLabel:'Laporan Kunjungan Kapal '+bulan, headerLogoCfg:PDF_HEADER_LOGO.kunjungan});
 }
 
 /* ======================= PASPEL: HELPER & SINKRONISASI ======================= */
@@ -5305,10 +6178,10 @@ function paspelRowHtml(r){
     <td class="num">${Number(r.anak||0).toLocaleString('id-ID')}</td>
     <td class="num">${Number(r.bayi||0).toLocaleString('id-ID')}</td>
     <td class="num">${Number(r.jumlah||0).toLocaleString('id-ID')}</td>
-    <td><div style="display:flex;gap:6px;">
+    <td>${canManageRecord(r) ? `<div style="display:flex;gap:6px;">
       <button class="btn btn-sm btn-ghost" onclick="editPaspel('${r.id}')">Edit</button>
       <button class="btn btn-sm btn-rust" onclick="deletePaspel('${r.id}')">Hapus</button>
-    </div></td>
+    </div>` : `<span style="font-size:11px;color:var(--ink-soft);">Milik ${escapeHtml(r.dibuatOleh||'petugas lain')}</span>`}</td>
   </tr>`;
 }
 function editPaspel(id){
@@ -5467,11 +6340,11 @@ function buildPaspelPrintDiv(bulan){
   const goldStyle = cellStyle+'font-weight:700;background:#F2B21A;';
 
   const printDiv = document.createElement('div');
-  printDiv.style.cssText = 'position:fixed;left:-9999px;top:0;width:900px;background:#fff;color:#111;padding:26px;font-family:Arial,Helvetica,sans-serif;';
+  printDiv.style.cssText = 'position:fixed;left:-9999px;top:0;width:900px;background:transparent;color:#111;padding:26px;font-family:Arial,Helvetica,sans-serif;';
   printDiv.innerHTML = wrapWithLogoWatermark(`
     <div class="brk-atom" style="display:flex;align-items:center;gap:14px;margin-bottom:14px;">
       <div style="flex-shrink:0;width:150px;">
-        <img src="${DANANTARA_LOGO}" alt="Danantara Indonesia" style="height:26px;width:auto;">
+        <img src="${getDanantaraLogo()}" alt="Danantara Indonesia" style="height:26px;width:auto;">
       </div>
       <div style="flex:1;text-align:center;">
         <div style="font-family:Arial,sans-serif;font-weight:700;font-size:13.5px;color:#111;line-height:1.4;">
@@ -5480,14 +6353,14 @@ function buildPaspelPrintDiv(bulan){
         </div>
       </div>
       <div style="flex-shrink:0;width:150px;text-align:right;">
-        <img src="${PELNI_LOGO}" alt="PELNI" style="height:30px;width:auto;">
+        <img src="${getPelniLogo()}" alt="PELNI" style="height:30px;width:auto;">
       </div>
     </div>
     <div class="brk-atom" style="font-size:10.5px;margin-bottom:12px;">
       <div><span style="display:inline-block;width:130px;">NAMA PERUSAHAAN</span>: ${escapeHtml(PASPEL.perusahaan||'-')}</div>
       <div><span style="display:inline-block;width:130px;">BULAN / TAHUN</span>: ${monthLabel(bulan)}</div>
     </div>
-    <table style="width:100%;border-collapse:collapse;">
+    <table style="width:100%;border-collapse:separate;border-spacing:0;">
       <thead>
         <tr>
           <th rowspan="2" style="${headStyle}width:32px;">NO</th>
@@ -5562,52 +6435,27 @@ function buildPaspelPrintDiv(bulan){
         ${signatureBlockHtml(PASPEL.pejabat?.nama, PASPEL.pejabat?.jabatan)}
       </div>
     </div>
-    <div class="brk-atom" style="margin-top:14px;font-size:9px;color:#888;">
-      Dicetak ${new Date().toLocaleString('id-ID')} melalui Aplikasi Sistem Operasional
-    </div>
   `);
   document.body.appendChild(printDiv);
   return printDiv;
 }
 function previewPaspelPdf(){
   const bulan = PASPEL_SELECTED_BULAN;
-  const printDiv = buildPaspelPrintDiv(bulan);
-  html2canvas(printDiv, {scale:2, backgroundColor:'#ffffff'}).then(canvas=>{
-    const imgData = canvas.toDataURL('image/png');
-    document.body.removeChild(printDiv);
-    document.getElementById('modal-root').innerHTML = `
-      <div class="modal-overlay">
-        <div class="modal-box" style="max-width:760px;">
-          <h3>Pratinjau Laporan PASPEL — ${monthLabel(bulan)}</h3>
-          <p style="font-size:12.5px;color:var(--ink-soft);margin:-6px 0 14px;">PDF akan otomatis terbagi ke beberapa halaman A4 tanpa memotong baris data.</p>
-          <div style="max-height:58vh;overflow:auto;border:1px solid #E4DFCF;border-radius:4px;">
-            <img src="${imgData}" style="width:100%;display:block;">
-          </div>
-          <div class="modal-actions">
-            <button class="btn btn-ghost" onclick="closeModal()">Batal / Edit dulu</button>
-            <button class="btn btn-gold" onclick="confirmDownloadPaspelPdf('${bulan}')">Konfirmasi &amp; Unduh PDF</button>
-          </div>
-        </div>
-      </div>
-    `;
-  }).catch(err=>{
-    document.body.removeChild(printDiv);
-    toast('Gagal membuat pratinjau: '+err.message);
+  pdfPreviewModal(buildPaspelPrintDiv(bulan), {
+    title:'Pratinjau Laporan PASPEL — '+monthLabel(bulan),
+    note:'PDF akan otomatis terbagi ke beberapa halaman A4 tanpa memotong baris data.',
+    maxWidth:760,
+    cetakOnclick:`confirmCetakPaspelPdf('${bulan}')`,
+    downloadOnclick:`confirmDownloadPaspelPdf('${bulan}')`
   });
 }
 function confirmDownloadPaspelPdf(bulan){
   closeModal();
-  const printDiv = buildPaspelPrintDiv(bulan);
-  html2canvas(printDiv, {scale:2, backgroundColor:'#ffffff'}).then(async canvas=>{
-    const pdf = buildPagedA4Pdf(canvas, printDiv, 'p');
-    document.body.removeChild(printDiv);
-    await finalizePdfSecurity(pdf, 'p', 'Laporan Paspel '+bulan);
-    pdf.save('Laporan_Paspel_'+bulan+'.pdf');
-    toast('File PDF diunduh ('+pdf.internal.getNumberOfPages()+' halaman).');
-  }).catch(err=>{
-    document.body.removeChild(printDiv);
-    toast('Gagal membuat PDF: '+err.message);
-  });
+  pdfDownload(buildPaspelPrintDiv(bulan), {orientation:'p', docLabel:'Laporan Paspel '+bulan, headerLogoCfg:PDF_HEADER_LOGO.paspel}, 'Laporan_Paspel_'+bulan+'.pdf');
+}
+function confirmCetakPaspelPdf(bulan){
+  closeModal();
+  pdfCetak(buildPaspelPrintDiv(bulan), {orientation:'p', docLabel:'Laporan Paspel '+bulan, headerLogoCfg:PDF_HEADER_LOGO.paspel});
 }
 
 /* ======================= MISS KEAGENAN: HELPER ======================= */
@@ -5788,10 +6636,10 @@ function mkRowHtml(r){
     <td class="num">${Number(r.lain2||0).toLocaleString('id-ID')}</td>
     <td class="num">${Number(r.jumlah||0).toLocaleString('id-ID')}</td>
     <td class="name-cell">${escapeHtml(r.keterangan||'-')}</td>
-    <td><div style="display:flex;gap:6px;">
+    <td>${canManageRecord(r) ? `<div style="display:flex;gap:6px;">
       <button class="btn btn-sm btn-ghost" onclick="editMissKeagan('${r.id}')">Edit</button>
       <button class="btn btn-sm btn-rust" onclick="deleteMissKeagan('${r.id}')">Hapus</button>
-    </div></td>
+    </div>` : `<span style="font-size:11px;color:var(--ink-soft);">Milik ${escapeHtml(r.dibuatOleh||'petugas lain')}</span>`}</td>
   </tr>`;
 }
 function editMissKeagan(id){
@@ -5968,7 +6816,7 @@ function buildMissKeaganPrintDiv(bulan){
     </tr>`).join('');
 
   const printDiv = document.createElement('div');
-  printDiv.style.cssText = 'position:fixed;left:-9999px;top:0;width:1080px;background:#fff;color:#111;padding:26px;font-family:Arial,Helvetica,sans-serif;';
+  printDiv.style.cssText = 'position:fixed;left:-9999px;top:0;width:1080px;background:transparent;color:#111;padding:26px;font-family:Arial,Helvetica,sans-serif;';
   printDiv.innerHTML = wrapWithLogoWatermark(`
     <div class="brk-atom" style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px;">
       <div style="font-size:10.5px;line-height:1.6;">
@@ -5976,7 +6824,7 @@ function buildMissKeaganPrintDiv(bulan){
         <div>Dari&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;: ${escapeHtml(MISS_KEAGENAN.dariPerusahaan||'-')}</div>
       </div>
       <div style="flex-shrink:0;width:150px;text-align:right;">
-        <img src="${PELNI_LOGO}" alt="PELNI" style="height:30px;width:auto;">
+        <img src="${getPelniLogo()}" alt="PELNI" style="height:30px;width:auto;">
       </div>
     </div>
     <div class="brk-atom" style="text-align:center;font-weight:700;font-size:13px;margin-bottom:14px;line-height:1.5;">
@@ -5985,7 +6833,7 @@ function buildMissKeaganPrintDiv(bulan){
       BULAN : ${monthLabelUpper(bulan)}
     </div>
     <div style="position:relative;" id="mk-table-wrap">
-      <table id="mk-table" style="width:100%;border-collapse:collapse;">
+      <table id="mk-table" style="width:100%;border-collapse:separate;border-spacing:0;">
         <thead id="mk-thead">
           <tr>
             <th rowspan="2" style="${headStyle}width:26px;">No</th>
@@ -6048,9 +6896,6 @@ function buildMissKeaganPrintDiv(bulan){
         <div>NRP : ${escapeHtml(MISS_KEAGENAN.kepalaCabang?.nrp||'-')}</div>
       </div>
     </div>
-    <div class="brk-atom" style="margin-top:14px;font-size:9px;color:#888;">
-      Dicetak ${new Date().toLocaleString('id-ID')} melalui Aplikasi Sistem Operasional
-    </div>
   `);
   document.body.appendChild(printDiv);
 
@@ -6081,43 +6926,21 @@ function buildMissKeaganPrintDiv(bulan){
 }
 function previewMissKeaganPdf(){
   const bulan = MK_SELECTED_BULAN;
-  const printDiv = buildMissKeaganPrintDiv(bulan);
-  html2canvas(printDiv, {scale:2, backgroundColor:'#ffffff'}).then(canvas=>{
-    const imgData = canvas.toDataURL('image/png');
-    document.body.removeChild(printDiv);
-    document.getElementById('modal-root').innerHTML = `
-      <div class="modal-overlay">
-        <div class="modal-box" style="max-width:760px;">
-          <h3>Pratinjau Laporan MISS Keagenan — ${monthLabel(bulan)}</h3>
-          <p style="font-size:12.5px;color:var(--ink-soft);margin:-6px 0 14px;">PDF akan otomatis terbagi ke beberapa halaman A4 landscape tanpa memotong baris data. Tanda tangan &amp; stempel dikosongkan untuk ditandatangani/distempel basah oleh atasan.</p>
-          <div style="max-height:58vh;overflow:auto;border:1px solid #E4DFCF;border-radius:4px;">
-            <img src="${imgData}" style="width:100%;display:block;">
-          </div>
-          <div class="modal-actions">
-            <button class="btn btn-ghost" onclick="closeModal()">Batal / Edit dulu</button>
-            <button class="btn btn-gold" onclick="confirmDownloadMissKeaganPdf('${bulan}')">Konfirmasi &amp; Unduh PDF</button>
-          </div>
-        </div>
-      </div>
-    `;
-  }).catch(err=>{
-    document.body.removeChild(printDiv);
-    toast('Gagal membuat pratinjau: '+err.message);
+  pdfPreviewModal(buildMissKeaganPrintDiv(bulan), {
+    title:'Pratinjau Laporan MISS Keagenan — '+monthLabel(bulan),
+    note:'PDF akan otomatis terbagi ke beberapa halaman A4 landscape tanpa memotong baris data. Tanda tangan &amp; stempel dikosongkan untuk ditandatangani/distempel basah oleh atasan.',
+    maxWidth:760,
+    cetakOnclick:`confirmCetakMissKeaganPdf('${bulan}')`,
+    downloadOnclick:`confirmDownloadMissKeaganPdf('${bulan}')`
   });
 }
 function confirmDownloadMissKeaganPdf(bulan){
   closeModal();
-  const printDiv = buildMissKeaganPrintDiv(bulan);
-  html2canvas(printDiv, {scale:2, backgroundColor:'#ffffff'}).then(async canvas=>{
-    const pdf = buildPagedA4Pdf(canvas, printDiv, 'l');
-    document.body.removeChild(printDiv);
-    await finalizePdfSecurity(pdf, 'l', 'Laporan MISS Keagenan '+bulan);
-    pdf.save('Laporan_MISS_Keagenan_'+bulan+'.pdf');
-    toast('File PDF diunduh ('+pdf.internal.getNumberOfPages()+' halaman).');
-  }).catch(err=>{
-    document.body.removeChild(printDiv);
-    toast('Gagal membuat PDF: '+err.message);
-  });
+  pdfDownload(buildMissKeaganPrintDiv(bulan), {orientation:'l', docLabel:'Laporan MISS Keagenan '+bulan, headerLogoCfg:PDF_HEADER_LOGO.missKeagenan}, 'Laporan_MISS_Keagenan_'+bulan+'.pdf');
+}
+function confirmCetakMissKeaganPdf(bulan){
+  closeModal();
+  pdfCetak(buildMissKeaganPrintDiv(bulan), {orientation:'l', docLabel:'Laporan MISS Keagenan '+bulan, headerLogoCfg:PDF_HEADER_LOGO.missKeagenan});
 }
 
 /* ======================= TALLY GENERAL CARGO: HELPER ======================= */
@@ -6166,13 +6989,6 @@ function tallyRowSelisih(r){
   const shr = parseFloat(String(r.ukuranSeharusnya).replace(',','.'));
   if(isNaN(dik) || isNaN(shr)) return null;
   return shr - dik;
-}
-// Menjumlahkan total selisih seluruh baris muatan (hanya baris yang selisihnya berupa angka valid).
-function tallyTotalSelisih(rows){
-  return (rows||[]).reduce((s,r)=>{
-    const d = tallyRowSelisih(r);
-    return d===null ? s : s + d;
-  }, 0);
 }
 // Membaca nilai input baris muatan yang sudah diketik pengguna dari DOM ke state,
 // dipanggil sebelum re-render (tambah/hapus baris) supaya isian yang sudah diketik tidak hilang.
@@ -6364,10 +7180,12 @@ function tallyRowHtml(r){
     <td>${escapeHtml(r.pelabuhan||'-')}</td>
     <td>${(r.rows||[]).length}</td>
     <td>${k.kesesuaian==='tidaksesuai' ? `<span class="badge rejected" title="${escapeHtml(k.ringkasanText)}">Tidak sesuai</span>` : '<span class="badge approved">Sesuai</span>'}</td>
-    <td style="display:flex;gap:6px;">
+    <td style="display:flex;gap:6px;flex-wrap:wrap;">
       <button class="btn btn-sm btn-ghost" onclick="TALLY_SELECTED_ID['${r.jenis}']='${tallyGroupKey(r)}'; goto('tally-${r.jenis}-laporan');">Cetak</button>
+      ${canManageRecord(r) ? `
       <button class="btn btn-sm btn-ghost" onclick="editTally('${r.jenis}','${r.id}')">Edit</button>
       <button class="btn btn-sm btn-rust" onclick="deleteTally('${r.jenis}','${r.id}')">Hapus</button>
+      ` : ''}
     </td>
   </tr>`;
 }
@@ -6768,11 +7586,11 @@ function buildTallyPrintDiv(jenis, groupKey){
   const sumCell = (field)=> !isNihil ? tallySumRows(rows,field).toLocaleString('id-ID') : '';
 
   const printDiv = document.createElement('div');
-  printDiv.style.cssText = 'position:fixed;left:-9999px;top:0;width:800px;background:#fff;color:#111;padding:32px;font-family:"Times New Roman",Times,serif;';
+  printDiv.style.cssText = 'position:fixed;left:-9999px;top:0;width:800px;background:transparent;color:#111;padding:32px;font-family:"Times New Roman",Times,serif;';
   printDiv.innerHTML = wrapWithLogoWatermark(`
         <div class="brk-atom" style="display:flex;flex-direction:column;align-items:flex-end;margin-bottom:6px;">
-          <img src="${PELNI_LOGO}" alt="PELNI" style="height:65px;width:auto;">
-          <div style="font-size:15px;font-style:italic;font-weight:600;letter-spacing:1px;color:#1D4470;margin-top:1px;">We Connect,We Unify</div>
+          <img src="${getPelniLogo()}" alt="PELNI" style="height:65px;width:auto;">
+          <div style="font-size:15px;font-style:italic;font-weight:600;letter-spacing:1px;color:#1D4470;margin-top:1px;"></div>
         </div>
         <div class="brk-atom" style="text-align:center;font-weight:700;font-size:12px;margin-bottom:16px;line-height:1.5;text-decoration:underline;text-decoration-skip-ink:none;text-underline-offset:3px;">
           BERITA ACARA VERIFIKASI &amp; <span style="font-style:italic;text-decoration:underline;text-decoration-skip-ink:none;">TALLY</span> ${jenisUpper} GENERAL CARGO
@@ -6786,7 +7604,7 @@ function buildTallyPrintDiv(jenis, groupKey){
         </div>
         <div class="brk-atom" style="font-size:11px;margin-bottom:12px;line-height:1.5;">${introText}</div>
         <div style="position:relative;" id="tly-table-wrap">
-          <table id="tly-table" style="width:100%;border-collapse:collapse;table-layout:fixed;">
+          <table id="tly-table" style="width:100%;border-collapse:separate;border-spacing:0;table-layout:fixed;">
             <colgroup>
               <col style="width:22px;"><col style="width:80px;"><col style="width:80px;"><col style="width:65px;">
               <col style="width:70px;"><col style="width:38px;"><col style="width:60px;">
@@ -6855,9 +7673,6 @@ function buildTallyPrintDiv(jenis, groupKey){
             ${signatureBlockHtml(TALLY.pejabatPbm?.nama, TALLY.pejabatPbm?.jabatan)}
           </div>
         </div>
-        <div class="brk-atom" style="margin-top:14px;font-size:9px;color:#888;">
-          Dicetak ${new Date().toLocaleString('id-ID')} melalui Aplikasi Sistem Operasional
-        </div>
   `);
   document.body.appendChild(printDiv);
 
@@ -6891,27 +7706,12 @@ function previewTallyPdf(jenis){
   if(!groupKey){ toast('Belum ada Berita Acara Tally untuk dicetak.'); return; }
   const printDiv = buildTallyPrintDiv(jenis, groupKey);
   if(!printDiv) return;
-  html2canvas(printDiv, {scale:2, backgroundColor:'#ffffff'}).then(canvas=>{
-    const imgData = canvas.toDataURL('image/png');
-    document.body.removeChild(printDiv);
-    document.getElementById('modal-root').innerHTML = `
-      <div class="modal-overlay">
-        <div class="modal-box" style="max-width:640px;">
-          <h3>Pratinjau Berita Acara Tally ${tallyJenisLabel(jenis)}</h3>
-          <p style="font-size:12.5px;color:var(--ink-soft);margin:-6px 0 14px;">PDF akan otomatis terbagi ke beberapa halaman A4 tanpa memotong baris data. Tanda tangan &amp; stempel dikosongkan untuk ditandatangani/distempel basah oleh atasan.</p>
-          <div style="max-height:58vh;overflow:auto;border:1px solid #E4DFCF;border-radius:4px;">
-            <img src="${imgData}" style="width:100%;display:block;">
-          </div>
-          <div class="modal-actions">
-            <button class="btn btn-ghost" onclick="closeModal()">Batal / Edit dulu</button>
-            <button class="btn btn-gold" onclick="confirmDownloadTallyPdf('${jenis}')">Konfirmasi &amp; Unduh PDF</button>
-          </div>
-        </div>
-      </div>
-    `;
-  }).catch(err=>{
-    document.body.removeChild(printDiv);
-    toast('Gagal membuat pratinjau: '+err.message);
+  pdfPreviewModal(printDiv, {
+    title:'Pratinjau Berita Acara Tally '+tallyJenisLabel(jenis),
+    note:'PDF akan otomatis terbagi ke beberapa halaman A4 tanpa memotong baris data. Tanda tangan &amp; stempel dikosongkan untuk ditandatangani/distempel basah oleh atasan.',
+    maxWidth:640,
+    cetakOnclick:`confirmCetakTallyPdf('${jenis}')`,
+    downloadOnclick:`confirmDownloadTallyPdf('${jenis}')`
   });
 }
 function confirmDownloadTallyPdf(jenis){
@@ -6919,17 +7719,15 @@ function confirmDownloadTallyPdf(jenis){
   const groupKey = TALLY_SELECTED_ID[jenis];
   const printDiv = buildTallyPrintDiv(jenis, groupKey);
   if(!printDiv) return;
-  html2canvas(printDiv, {scale:2, backgroundColor:'#ffffff'}).then(async canvas=>{
-    const pdf = buildPagedA4Pdf(canvas, printDiv, 'p');
-    document.body.removeChild(printDiv);
-    const fileSafeKey = String(groupKey).replace(/[^a-zA-Z0-9]+/g,'_');
-    await finalizePdfSecurity(pdf, 'p', 'Berita Acara Tally '+tallyJenisLabel(jenis)+' '+groupKey, 'tally-single');
-    pdf.save('Berita_Acara_Tally_'+tallyJenisLabel(jenis)+'_'+fileSafeKey+'.pdf');
-    toast('File PDF diunduh ('+pdf.internal.getNumberOfPages()+' halaman).');
-  }).catch(err=>{
-    document.body.removeChild(printDiv);
-    toast('Gagal membuat PDF: '+err.message);
-  });
+  const fileSafeKey = String(groupKey).replace(/[^a-zA-Z0-9]+/g,'_');
+  pdfDownload(printDiv, {orientation:'p', docLabel:'Berita Acara Tally '+tallyJenisLabel(jenis)+' '+groupKey, watermarkMode:'tally-single', headerLogoCfg:PDF_HEADER_LOGO.tally}, 'Berita_Acara_Tally_'+tallyJenisLabel(jenis)+'_'+fileSafeKey+'.pdf');
+}
+function confirmCetakTallyPdf(jenis){
+  closeModal();
+  const groupKey = TALLY_SELECTED_ID[jenis];
+  const printDiv = buildTallyPrintDiv(jenis, groupKey);
+  if(!printDiv) return;
+  pdfCetak(printDiv, {orientation:'p', docLabel:'Berita Acara Tally '+tallyJenisLabel(jenis)+' '+groupKey, watermarkMode:'tally-single', headerLogoCfg:PDF_HEADER_LOGO.tally});
 }
 
 /* ======================= KAS KEAGENAN: HELPER ======================= */
@@ -7199,7 +7997,7 @@ function kkRowHtml(r){
     <td class="name-cell">${escapeHtml(r.keterangan||'-')}</td>
     <td class="num" style="color:${jenisColor};">${tanda}${fmtRp(r.jumlah)}</td>
     <td class="name-cell">${escapeHtml(r.dibuatOleh||'-')}</td>
-    <td><button class="btn btn-sm btn-rust" onclick="deleteKasKeagenan('${r.id}')">Hapus</button></td>
+    <td>${canManageRecord(r) ? `<button class="btn btn-sm btn-rust" onclick="deleteKasKeagenan('${r.id}')">Hapus</button>` : `<span style="font-size:11px;color:var(--ink-soft);">Milik ${escapeHtml(r.dibuatOleh||'petugas lain')}</span>`}</td>
   </tr>`;
 }
 function deleteKasKeagenan(id){
@@ -7402,11 +8200,11 @@ function buildPdfPrintDivKK(bulan){
   ];
 
   const printDiv = document.createElement('div');
-  printDiv.style.cssText = 'position:fixed;left:-9999px;top:0;width:800px;background:#fff;color:#111;padding:34px;font-family:Arial,Helvetica,sans-serif;';
+  printDiv.style.cssText = 'position:fixed;left:-9999px;top:0;width:800px;background:transparent;color:#111;padding:34px;font-family:Arial,Helvetica,sans-serif;';
   printDiv.innerHTML = wrapWithLogoWatermark(`
     <div class="brk-atom" style="display:flex;align-items:flex-start;gap:18px;margin-bottom:14px;">
       <div style="flex-shrink:0;padding-top:2px;">
-        <img src="${PELNI_LOGO}" alt="PELNI" style="height:34px;width:auto;">
+        <img src="${getPelniLogo()}" alt="PELNI" style="height:34px;width:auto;">
       </div>
       <div style="flex:1;text-align:center;">
         <div style="font-family:Arial,sans-serif;font-weight:700;font-size:17px;color:#111;line-height:1.3;">PT. PELAYARAN NASIONAL INDONESIA<br>(PERSERO)<br>KENDARI</div>
@@ -7416,7 +8214,7 @@ function buildPdfPrintDivKK(bulan){
     <div class="brk-atom" style="border:1px solid #111;text-align:center;padding:6px 0;margin-bottom:14px;">
       <span style="font-size:16px;font-weight:700;text-decoration:underline;letter-spacing:.5px;">LAPORAN KAS KEAGENAN BULAN ${monthLabel(bulan).toUpperCase()}</span>
     </div>
-    <table style="width:100%;border-collapse:collapse;margin-bottom:14px;">
+    <table style="width:100%;border-collapse:separate;border-spacing:0;margin-bottom:14px;">
       <tr>
         <td style="width:16%;vertical-align:top;${lbl}">Document No.</td><td style="width:2%;${lbl}">:</td>
         <td style="width:34%;vertical-align:top;${val}">${noDok}</td>
@@ -7446,23 +8244,27 @@ function buildPdfPrintDivKK(bulan){
         <td style="${val}" colspan="4">${escapeHtml(petugasNames.join(', ')||'-')}</td>
       </tr>
     </table>
-    <table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:2px;border:1px solid #111;">
+    <div style="border:1px solid #111;margin-bottom:2px;">
+    <table style="width:100%;border-collapse:separate;border-spacing:0;font-size:12px;">
       <thead><tr>
         <th style="text-align:center;border-bottom:1px solid #111;border-right:1px solid #111;padding:6px;background:#F2F2F2;width:40px;">No</th>
         <th style="text-align:left;border-bottom:1px solid #111;border-right:1px solid #111;padding:6px;background:#F2F2F2;">Description</th>
         <th style="text-align:right;border-bottom:1px solid #111;padding:6px;background:#F2F2F2;width:150px;">Amount</th>
       </tr></thead>
       <tbody>
-        ${kategoriRows.map(kr=>`<tr><td style="text-align:center;padding:5px 6px;border-right:1px solid #111;border-bottom:1px solid #ddd;">${kr[0]}</td><td style="padding:5px 6px;border-right:1px solid #111;border-bottom:1px solid #ddd;">${kr[1]}</td><td style="text-align:right;padding:5px 6px;border-bottom:1px solid #ddd;">${kr[3]?'-':''}${fmtRp(kr[2])}</td></tr>`).join('')}
+        ${kategoriRows.map(kr=>`<tr><td style="text-align:center;padding:5px 6px;border-right:1px solid #111;border-bottom:1px solid #999;">${kr[0]}</td><td style="padding:5px 6px;border-right:1px solid #111;border-bottom:1px solid #999;">${kr[1]}</td><td style="text-align:right;padding:5px 6px;border-bottom:1px solid #999;">${kr[3]?'-':''}${fmtRp(kr[2])}</td></tr>`).join('')}
         <tr><td colspan="2" style="text-align:right;padding:6px;border-right:1px solid #111;border-top:1px solid #111;font-weight:700;">TOTAL</td><td style="text-align:right;padding:6px;border-top:1px solid #111;font-weight:700;">${fmtRp(saldoAkhir)}</td></tr>
       </tbody>
     </table>
-    <table style="width:100%;border-collapse:collapse;font-size:11px;margin-bottom:18px;border:1px solid #111;border-top:none;">
+    </div>
+    <div style="border:1px solid #111;border-top:none;margin-bottom:18px;">
+    <table style="width:100%;border-collapse:separate;border-spacing:0;font-size:11px;">
       <tr><td style="width:14%;padding:6px;vertical-align:top;font-weight:600;">Says</td><td style="width:2%;padding:6px;vertical-align:top;">:</td>
         <td style="padding:6px;vertical-align:top;">${saldoAkhir<0?'Minus ':''}${terbilang(saldoAkhir)} Rupiah</td></tr>
     </table>
+    </div>
     <div style="font-size:12px;font-weight:600;margin-bottom:6px;">Rincian transaksi (${list.length})</div>
-    <table style="width:100%;border-collapse:collapse;font-size:11px;margin-bottom:28px;">
+    <table style="width:100%;border-collapse:separate;border-spacing:0;font-size:11px;margin-bottom:28px;">
       <thead><tr>
         <th style="text-align:left;border-bottom:1px solid #182430;padding:4px;">Tanggal</th>
         <th style="text-align:left;border-bottom:1px solid #182430;padding:4px;">Jenis</th>
@@ -7475,24 +8277,24 @@ function buildPdfPrintDivKK(bulan){
           const jenisLabel = r.jenis==='masuk' ? (KK_KATEGORI_LABEL[r.kategori]||'Dana Masuk') : 'Pengeluaran';
           const tanda = r.jenis==='masuk' ? '' : '-';
           return `<tr>
-          <td style="padding:4px;border-bottom:1px solid #eee;">${fmtDate(r.tanggal)}</td>
-          <td style="padding:4px;border-bottom:1px solid #eee;">${escapeHtml(jenisLabel)}</td>
-          <td style="padding:4px;border-bottom:1px solid #eee;">${escapeHtml(r.kapal||'-')}</td>
-          <td style="padding:4px;border-bottom:1px solid #eee;">${escapeHtml(r.keterangan||'')}</td>
-          <td style="padding:4px;border-bottom:1px solid #eee;text-align:right;">${tanda}${fmtRp(r.jumlah)}</td>
+          <td style="padding:4px;border-bottom:1px solid #bbb;">${fmtDate(r.tanggal)}</td>
+          <td style="padding:4px;border-bottom:1px solid #bbb;">${escapeHtml(jenisLabel)}</td>
+          <td style="padding:4px;border-bottom:1px solid #bbb;">${escapeHtml(r.kapal||'-')}</td>
+          <td style="padding:4px;border-bottom:1px solid #bbb;">${escapeHtml(r.keterangan||'')}</td>
+          <td style="padding:4px;border-bottom:1px solid #bbb;text-align:right;">${tanda}${fmtRp(r.jumlah)}</td>
         </tr>`;
         }).join('') || '<tr><td colspan="5" style="padding:8px;color:#888;">Tidak ada transaksi bulan ini.</td></tr>'}
       </tbody>
     </table>
-    <table style="width:100%;border-collapse:collapse;border:1px solid #111;font-size:11px;">
+    <table style="width:100%;border-collapse:separate;border-spacing:0;font-size:11px;">
       <tr>
-        <td style="width:50%;border-right:1px solid #111;padding:10px;vertical-align:top;">
+        <td style="width:50%;border:1px solid #111;border-right:none;padding:10px;vertical-align:top;">
           <div style="color:#333;">Date</div>
           <div style="text-align:center;font-weight:700;margin:4px 0 6px;">PETUGAS</div>
           <div style="min-height:80px;"></div>
           <div style="text-align:center;border-top:1px solid #111;padding-top:4px;font-weight:600;">${escapeHtml(petugasNames.join(', ')||'-')}</div>
         </td>
-        <td style="width:50%;padding:10px;vertical-align:top;">
+        <td style="width:50%;border:1px solid #111;padding:10px;vertical-align:top;">
           <div style="color:#333;">Date</div>
           <div style="text-align:center;font-weight:700;margin:4px 0 6px;">MENGETAHUI<br>KA. OPERASI DAN PELAYANAN</div>
           <div style="min-height:80px;"></div>
@@ -7500,52 +8302,27 @@ function buildPdfPrintDivKK(bulan){
         </td>
       </tr>
     </table>
-    <div class="brk-atom" style="display:flex;justify-content:space-between;margin-top:16px;font-size:10px;color:#888;">
-      <div>Dicetak ${new Date().toLocaleString('id-ID')} melalui Aplikasi Sistem Operasional</div>
-    </div>
   `);
   document.body.appendChild(printDiv);
   return printDiv;
 }
 function previewPdfKK(){
   const bulan = document.getElementById('kk-lap-month-select').value;
-  const printDiv = buildPdfPrintDivKK(bulan);
-  html2canvas(printDiv, {scale:2, backgroundColor:'#ffffff'}).then(canvas=>{
-    const imgData = canvas.toDataURL('image/png');
-    document.body.removeChild(printDiv);
-    document.getElementById('modal-root').innerHTML = `
-      <div class="modal-overlay">
-        <div class="modal-box" style="max-width:640px;">
-          <h3>Pratinjau Laporan PDF — ${monthLabel(bulan)}</h3>
-          <p style="font-size:12.5px;color:var(--ink-soft);margin:-6px 0 14px;">Periksa kembali isi laporan sebelum diunduh. PDF akan otomatis terbagi ke beberapa halaman A4 tanpa memotong baris data.</p>
-          <div style="max-height:58vh;overflow:auto;border:1px solid #E4DFCF;border-radius:4px;">
-            <img src="${imgData}" style="width:100%;display:block;">
-          </div>
-          <div class="modal-actions">
-            <button class="btn btn-ghost" onclick="closeModal()">Batal / Edit dulu</button>
-            <button class="btn btn-gold" onclick="confirmDownloadPdfKK('${bulan}')">Konfirmasi &amp; Unduh PDF</button>
-          </div>
-        </div>
-      </div>
-    `;
-  }).catch(err=>{
-    document.body.removeChild(printDiv);
-    toast('Gagal membuat pratinjau: '+err.message);
+  pdfPreviewModal(buildPdfPrintDivKK(bulan), {
+    title:'Pratinjau Laporan PDF — '+monthLabel(bulan),
+    note:'Periksa kembali isi laporan sebelum diunduh. PDF akan otomatis terbagi ke beberapa halaman A4 tanpa memotong baris data.',
+    maxWidth:640,
+    cetakOnclick:`confirmCetakPdfKK('${bulan}')`,
+    downloadOnclick:`confirmDownloadPdfKK('${bulan}')`
   });
 }
 function confirmDownloadPdfKK(bulan){
   closeModal();
-  const printDiv = buildPdfPrintDivKK(bulan);
-  html2canvas(printDiv, {scale:2, backgroundColor:'#ffffff'}).then(async canvas=>{
-    const pdf = buildPagedA4Pdf(canvas, printDiv);
-    document.body.removeChild(printDiv);
-    await finalizePdfSecurity(pdf, 'p', 'Laporan Kas Keagenan '+bulan);
-    pdf.save('Laporan_Kas_Keagenan_'+bulan+'.pdf');
-    toast('File PDF diunduh ('+pdf.internal.getNumberOfPages()+' halaman).');
-  }).catch(err=>{
-    document.body.removeChild(printDiv);
-    toast('Gagal membuat PDF: '+err.message);
-  });
+  pdfDownload(buildPdfPrintDivKK(bulan), {orientation:'p', docLabel:'Laporan Kas Keagenan '+bulan, headerLogoCfg:PDF_HEADER_LOGO.kasKeagenan}, 'Laporan_Kas_Keagenan_'+bulan+'.pdf');
+}
+function confirmCetakPdfKK(bulan){
+  closeModal();
+  pdfCetak(buildPdfPrintDivKK(bulan), {orientation:'p', docLabel:'Laporan Kas Keagenan '+bulan, headerLogoCfg:PDF_HEADER_LOGO.kasKeagenan});
 }
 
 /* ======================= TRACKING NOTA DINAS: HELPER ======================= */
@@ -7632,11 +8409,70 @@ function checkNotaDinasReminders(force){
         </table>
         <div class="modal-actions">
           <button class="btn btn-ghost" onclick="closeModal()">Tutup</button>
+          <button class="btn btn-ghost" onclick="kirimPengingatWa('nd')">💬 Kirim ringkasan via WhatsApp</button>
           <button class="btn btn-gold" onclick="closeModal(); ND_RIWAYAT_FILTER={kode:'all',status:'all'}; goto('nd-riwayat');">Lihat &amp; perbarui status</button>
         </div>
       </div>
     </div>
   `;
+}
+/* ======================= PENGINGAT MANUAL VIA WHATSAPP (Nota Dinas & PNBP) =======================
+   Karena aplikasi berbasis browser TIDAK bisa mengirim apa pun sendiri saat tidak ada yang
+   membukanya, ini adalah pengingat semi-otomatis: begitu ada yang membuka aplikasi (atau
+   sengaja mengecek), tinggal satu klik untuk membagikan ringkasan tunggakan ke WhatsApp --
+   tidak perlu mengetik ulang satu-satu. Nomor tujuan opsional, sama seperti pola pengiriman
+   dokumen kapal -- kalau dikosongkan, kontak dipilih manual dari dalam WhatsApp/WhatsApp Web. */
+function kirimPengingatWa(kind){
+  const overdue = kind==='nd' ? ndOverdueRecords() : pnbpOverdueRecords();
+  if(overdue.length===0){ toast('Tidak ada yang perlu diingatkan saat ini.'); return; }
+  const judul = kind==='nd' ? 'Nota Dinas' : 'Biaya PNBP Kapal';
+  const nomorTersimpan = localStorage.getItem('reminder_wa_nomor_terakhir') || '';
+  const mobile = dkIsMobileDevice();
+  document.getElementById('modal-root').innerHTML = `
+    <div class="modal-overlay">
+      <div class="modal-box" style="max-width:440px;">
+        <h3>💬 Kirim pengingat ${judul}</h3>
+        <p style="font-size:13px;color:var(--ink-soft);margin:0 0 14px;">${overdue.length} ${judul.toLowerCase()} perlu tindak lanjut.</p>
+        <div class="form-field full">
+          <label>Nomor WhatsApp tujuan <span style="font-weight:400;color:var(--ink-soft);">(opsional -- kosongkan kalau mau pilih kontak sendiri dari ${mobile?'WhatsApp':'WhatsApp Web'})</span></label>
+          <input type="text" id="rw-nomor" placeholder="cth. 08123456789" value="${escapeHtml(nomorTersimpan)}">
+        </div>
+        <div class="modal-actions">
+          <button class="btn btn-ghost" onclick="closeModal()">Batal</button>
+          <button class="btn btn-gold" id="rw-send-btn" onclick="confirmKirimPengingatWa('${kind}')">Kirim sekarang</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+function confirmKirimPengingatWa(kind){
+  const overdue = kind==='nd' ? ndOverdueRecords() : pnbpOverdueRecords();
+  if(overdue.length===0){ closeModal(); return; }
+  const nomorInput = document.getElementById('rw-nomor');
+  const nomorRaw = (nomorInput.value||'').trim();
+  let nomor = '';
+  if(nomorRaw){
+    nomor = dkBersihkanNomorWa(nomorRaw);
+    if(!/^\d{8,15}$/.test(nomor)){ toast('Format nomor WhatsApp tidak valid. Contoh: 08123456789'); return; }
+    localStorage.setItem('reminder_wa_nomor_terakhir', nomorRaw);
+  }
+  const teks = kind==='nd'
+    ? `⏰ Pengingat Tindak Lanjut Nota Dinas (${overdue.length} perlu tindak lanjut):\n`
+      + overdue.map(r=>`- ${r.nomor} (${r.perihal||'-'}) -- ${ndDaysSince(r.statusUpdatedAt||r.dibuatPada)} hari, status: ${ndStatusOf(r.statusId).label}`).join('\n')
+    : `⏰ Pengingat Biaya PNBP Kapal Belum Dibayar (${overdue.length} catatan):\n`
+      + overdue.map(r=>`- ${r.kapal||'-'} (${r.keterangan||'-'}) -- ${fmtRp(r.jumlah)}, ${pnbpDaysSince(r.statusUpdatedAt||r.tanggal||r.dibuatPada)} hari`).join('\n');
+  const mobile = dkIsMobileDevice();
+  const url = mobile
+    ? 'https://api.whatsapp.com/send?phone='+encodeURIComponent(nomor)+'&text='+encodeURIComponent(teks)
+    : (nomor ? 'https://web.whatsapp.com/send?phone='+encodeURIComponent(nomor)+'&text='+encodeURIComponent(teks) : 'https://web.whatsapp.com/');
+  if(!mobile && !nomor){
+    try{ navigator.clipboard && navigator.clipboard.writeText(teks); }catch(e){ /* clipboard tidak tersedia, tidak fatal */ }
+  }
+  window.open(url, DK_WA_TAB_NAME);
+  closeModal();
+  toast(!mobile && !nomor
+    ? 'WhatsApp Web dibuka -- pilih kontak, teks pengingat sudah disalin, tinggal tempel.'
+    : 'WhatsApp dibuka dengan ringkasan pengingat siap dikirim.');
 }
 
 /* ======================= TRACKING NOTA DINAS: INPUT ======================= */
@@ -7807,6 +8643,7 @@ function renderNotaDinasRiwayat(c, actions){
         </select>
       </div>
       <button class="btn btn-ghost btn-sm" onclick="checkNotaDinasReminders(true)">Cek pengingat sekarang</button>
+      <button class="btn btn-ghost btn-sm" onclick="kirimPengingatWa('nd')">💬 Kirim pengingat via WhatsApp</button>
     </div>
     <div class="card" style="padding:0;overflow:auto;">
       <table class="ledger">
@@ -7835,7 +8672,7 @@ function ndRowHtml(r){
     </td>
     <td style="font-size:11.5px;color:var(--ink-soft);white-space:nowrap;">${ndDaysSince(r.statusUpdatedAt||r.dibuatPada)} hari lalu</td>
     <td class="name-cell">${escapeHtml(r.dibuatOleh||'-')}</td>
-    <td><button class="btn btn-sm btn-rust" onclick="deleteNotaDinas('${r.id}')">Hapus</button></td>
+    <td>${canManageRecord(r) ? `<button class="btn btn-sm btn-rust" onclick="deleteNotaDinas('${r.id}')">Hapus</button>` : `<span style="font-size:11px;color:var(--ink-soft);">Milik ${escapeHtml(r.dibuatOleh||'petugas lain')}</span>`}</td>
   </tr>`;
 }
 function ndUpdateStatus(id, statusId){
@@ -7957,14 +8794,31 @@ async function dkFetch(path, options){
   const urutan = DK_LAST_WORKING_URL && daftarAlamat.includes(DK_LAST_WORKING_URL)
     ? [DK_LAST_WORKING_URL, ...daftarAlamat.filter(u=>u!==DK_LAST_WORKING_URL)]
     : daftarAlamat;
+  // Batas waktu PENDEK per alamat (bukan default browser yang bisa puluhan detik/menit).
+  // Ini penting terutama saat diakses dari luar LAN (mis. HP pakai data seluler): alamat
+  // backend berupa IP privat (192.168.x.x) TIDAK PERNAH bisa dijangkau dari luar jaringan
+  // itu, tapi tanpa batas waktu eksplisit, fetch() ke alamat semacam itu bisa menggantung
+  // lama sekali (tergantung operator seluler) sebelum browser menyerah sendiri -- membuat
+  // jalur cadangan (baca langsung dari Supabase, lihat dkFetchLiveDocs()) baru dicoba jauh
+  // kemudian, terasa seperti "tidak ada data" padahal sebenarnya baru menunggu koneksi mati.
+  // CATATAN: 3 detik ini sengaja dibuat PENDEK sebagai default karena dipakai hampir semua
+  // endpoint (baca data dsb) yang memang harus cepat gagal supaya jalur cadangan cepat dicoba.
+  // Endpoint yang butuh waktu proses lebih lama di server (mis. /kirim-email -- harus lampirkan
+  // beberapa PDF & kirim SMTP) bisa memberi options.timeoutMs sendiri saat memanggil dkFetch(),
+  // supaya tidak dianggap "gagal" padahal backend masih memprosesnya (lihat pemanggilnya).
+  const BATAS_WAKTU_PER_ALAMAT_MS = options.timeoutMs || 3000;
   let lastNetworkErr = null;
   for(const base of urutan){
     let res;
+    const timeoutCtrl = new AbortController();
+    const timeoutId = setTimeout(() => timeoutCtrl.abort(), BATAS_WAKTU_PER_ALAMAT_MS);
     try{
-      res = await fetch(base+path, Object.assign({}, options, { headers }));
+      res = await fetch(base+path, Object.assign({}, options, { headers, signal: timeoutCtrl.signal }));
     }catch(networkErr){
       lastNetworkErr = networkErr;
-      continue; // alamat ini tidak terjangkau, coba alamat berikutnya di daftar
+      continue; // alamat ini tidak terjangkau (atau tidak merespons dalam 3 detik), coba alamat berikutnya
+    }finally{
+      clearTimeout(timeoutId);
     }
     let json;
     try{
@@ -7997,6 +8851,11 @@ async function dkFetch(path, options){
 let DK_LIVE_DOCS = [];
 let DK_LIVE_LOADING = false;
 let DK_LIVE_ERROR = '';
+// Map { [nomorPkk]: { status:'Pengajuan'|'Revisi', statusMentah, updatedAt } } -- diisi lewat
+// dkFetchStatusPengajuan(), sumbernya tabel pengajuan_status (lihat src/discovery.js &
+// src/supabaseClient.js di backend). Dipakai buat menandai tiap grup dokumen di tab "Dokumen
+// Keberangkatan Kapal" dengan status TERBARU dari listing Inaportnet.
+let DK_STATUS_MAP = {};
 function dkMapRow(row){
   return {
     id: row.id,
@@ -8039,6 +8898,30 @@ async function dkFetchLiveDocs(){
     DK_LIVE_LOADING = false;
   }
 }
+/**
+ * Ambil status (Pengajuan/Revisi) semua No PKK dari backend (GET /status-pengajuan), dengan
+ * jalur cadangan baca langsung dari Supabase (tabel pengajuan_status) kalau backend tidak
+ * terjangkau -- sama polanya dengan dkFetchLiveDocs() di atas. Gagal total di sini TIDAK
+ * dianggap error fatal (cuma berarti badge status tidak tampil) -- checklist dokumen &
+ * daftar dokumen tetap tampil seperti biasa.
+ */
+async function dkFetchStatusPengajuan(){
+  try{
+    const json = await dkFetch('/status-pengajuan', {});
+    DK_STATUS_MAP = json.data || {};
+  }catch(e){
+    try{
+      if(!sbClient) throw e;
+      const { data, error } = await sbClient.from('pengajuan_status').select('*');
+      if(error) throw error;
+      const map = {};
+      (data||[]).forEach(row=>{ map[row.nomor_pkk] = { status: row.status, statusMentah: row.status_mentah, updatedAt: row.updated_at }; });
+      DK_STATUS_MAP = map;
+    }catch(fallbackErr){
+      DK_STATUS_MAP = {}; // tidak fatal -- badge status cuma tidak tampil kalau ini gagal
+    }
+  }
+}
 function dkAllKapal(){
   const set = new Set(DK_LIVE_DOCS.map(r=>r.namaKapal).filter(Boolean));
   return Array.from(set).sort();
@@ -8077,8 +8960,8 @@ function renderDokumenKapalScan(c, actions){
       <div class="form-grid">
         <div class="form-field full">
           <label>Link Pengajuan PKK (Inaportnet) — opsional, kosongkan kalau tidak perlu</label>
-          <div style="display:flex;gap:8px;">
-            <input type="text" id="dk-url" placeholder="https://inaportnet.dephub.go.id/ap/warta-kapal/view/..." style="flex:1;">
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <input type="text" id="dk-url" placeholder="https://inaportnet.dephub.go.id/ap/warta-kapal/view/..." style="flex:1;min-width:200px;">
             <button type="button" class="btn btn-ghost btn-sm" style="white-space:nowrap;" onclick="window.open('https://inaportnet.dephub.go.id/dashboard','_blank')">↗ Buka Inaportnet</button>
           </div>
           <p style="font-size:11px;color:var(--ink-soft);margin:4px 0 0;">Tombol di atas membuka dashboard Inaportnet di tab baru — salin link halaman "Pengajuan PKK" (bukan link dashboard-nya sendiri) lalu tempel di sini.</p>
@@ -8173,17 +9056,109 @@ function dkFmtWaktu(iso){
   const d = new Date(iso);
   return d.toLocaleString('id-ID', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' });
 }
+/* ======================= "SEDANG DIPANTAU" HANYA UNTUK YANG BELUM LENGKAP =======================
+   Supaya kartu "Link yang sedang dipantau" tidak menumpuk, sebuah link otomatis TIDAK
+   ditampilkan lagi di daftar aktif HANYA kalau KEDUA syarat ini terpenuhi SEKALIGUS:
+   (a) KEEMPAT dokumen wajib (Crewlist, LKK Agen, LK3 Nakhoda, SPB) untuk PKK itu sudah ada, DAN
+   (b) sudah lebih dari 8 jam sejak dokumen TERAKHIR dari keempatnya itu tersimpan.
+   Kalau salah satu dari 4 dokumen itu BELUM ada -- berapa pun lama umur linknya -- link itu
+   TETAP tampil di daftar aktif, supaya PKK yang belum lengkap (mis. baru LKK Agen & LK3 Nakhoda,
+   Crewlist & SPB belum) selalu kelihatan sampai benar-benar tuntas.
+   Link yang disembunyikan TETAP terus dicek otomatis oleh backend di latar belakang --
+   ini murni merapikan tampilan, bukan menghapus/menjeda pemantauannya (backend punya aturan
+   auto-jeda sendiri yang serupa, lihat checkSatuWatchlist() di src/index.js).
+   Link yang di-jeda MANUAL (tombol "Jeda") tetap selalu tampil di daftar utama, supaya
+   mudah dilanjutkan lagi kapan saja -- aturan di atas hanya untuk link yang masih aktif berjalan.
+   CATATAN TEKNIS: fungsi ini membaca field nomor_pkk & created_at dari respons /watchlist
+   KALAU backend menyediakannya. Kalau belum ada, sistem mencocokkan lewat nama kapal yang
+   tertera di label link (sedikit kurang presis, tapi tetap berjalan). */
+const DK_WATCHLIST_ARSIP_JAM = 8;
+// Urutan & label 4 dokumen wajib -- dipakai juga di renderDokumenKapalRiwayat() (lihat
+// DK_CHECKLIST_JENIS di atas). Didefinisikan ulang di sini (bukan dipakai bersama) supaya
+// modul watchlist tidak bergantung urutan definisi dengan modul riwayat di file ini.
+const DK_JENIS_WAJIB = ['CREWLIST', 'LKK-AGEN', 'LK3-NAKHODA', 'SPB'];
+function dkWatchlistNomorPkk(w){
+  return w.nomor_pkk || w.nomorPkk || null;
+}
+function dkWatchlistNamaKapalDariLabel(w){
+  const teks = (w.label || w.url || '').trim();
+  const m = teks.match(/KM\.?\s*[A-Za-z0-9. ]+/i);
+  return (m ? m[0] : teks).trim();
+}
+function dkWatchlistLabelKapal(w){
+  const pkk = dkWatchlistNomorPkk(w);
+  if(pkk){
+    const doc = (DK_LIVE_DOCS||[]).find(r=>r.nomorPkk===pkk);
+    if(doc && doc.namaKapal) return doc.namaKapal;
+  }
+  return dkWatchlistNamaKapalDariLabel(w) || (w.label || w.url || 'Kapal tidak diketahui');
+}
+/**
+ * Cari semua baris dokumen ASLI (bukan PKK-INFO) di DK_LIVE_DOCS milik satu entri watchlist --
+ * dicocokkan lewat nomor PKK kalau backend menyediakannya, atau lewat kecocokan nama kapal
+ * dari label sebagai cadangan.
+ */
+function dkWatchlistDokumenTerkait(w){
+  const pkk = dkWatchlistNomorPkk(w);
+  if(pkk) return (DK_LIVE_DOCS||[]).filter(r=>r.nomorPkk===pkk && r.jenisDokumen!=='PKK-INFO');
+  const nama = dkWatchlistNamaKapalDariLabel(w).toLowerCase();
+  if(!nama) return [];
+  return (DK_LIVE_DOCS||[]).filter(r=> r.jenisDokumen!=='PKK-INFO' && r.namaKapal &&
+    (r.namaKapal.toLowerCase().includes(nama) || nama.includes(r.namaKapal.toLowerCase())));
+}
+/**
+ * true kalau KEEMPAT dokumen wajib (Crewlist/LKK Agen/LK3 Nakhoda/SPB) sudah ada untuk PKK
+ * milik watchlist ini -- sumber PALING ANDAL tetap teks "Hasil terakhir" dari backend kalau
+ * sudah menyebutkan lengkap, dipakai duluan sebagai jalan pintas sebelum mencocokkan dokumen.
+ */
+function dkWatchlistLengkap(w){
+  const hasil = (w.last_result || '').toLowerCase();
+  if(hasil.includes('4 dokumen wajib') && hasil.includes('lengkap')) return true;
+  const dokumen = dkWatchlistDokumenTerkait(w);
+  return DK_JENIS_WAJIB.every(jenis=>dokumen.some(r=>r.jenisDokumen===jenis));
+}
+/**
+ * Jam sejak dokumen TERAKHIR dari 4 dokumen wajib itu tersimpan/diperbarui -- hanya berarti
+ * kalau dkWatchlistLengkap(w) sudah true. Dihitung dari field updatedAt (fallback createdAt)
+ * yang paling BARU di antara ke-4 dokumen wajib itu.
+ */
+function dkWatchlistJamSejakLengkap(w){
+  const dokumen = dkWatchlistDokumenTerkait(w).filter(r=>DK_JENIS_WAJIB.includes(r.jenisDokumen));
+  const waktu = dokumen.map(r=>new Date(r.updatedAt||0).getTime()).filter(t=>!isNaN(t) && t>0);
+  if(!waktu.length) return null;
+  const terbaru = Math.max(...waktu);
+  return (Date.now() - terbaru) / 3600000;
+}
+function dkWatchlistTampilAktif(w){
+  // CATATAN: sebelumnya baris yang "di-jeda" (w.active=false) selalu dikecualikan dari
+  // aturan ini dengan asumsi itu jeda manual oleh pengguna. Ternyata backend JUGA memakai
+  // "otomatis dijeda" persis untuk kasus yang mau kita sembunyikan (dokumen lengkap &
+  // stabil) -- jadi pengecualian itu dihapus. Aturan lengkap+jam berlaku baik untuk yang
+  // masih aktif maupun yang sudah dijeda (oleh siapa/apa pun itu).
+  if(!dkWatchlistLengkap(w)) return true; // belum lengkap -- SELALU tampil, berapa pun umurnya
+  const jam = dkWatchlistJamSejakLengkap(w);
+  if(jam!==null && jam >= DK_WATCHLIST_ARSIP_JAM) return false; // lengkap DAN sudah lewat masa tenggang
+  return true; // lengkap tapi masih baru -- tetap tampil sebentar, jaga-jaga masih ada revisi
+}
 async function dkRefreshWatchlist(){
   const box = document.getElementById('dk-watchlist-list');
   if(!box) return;
   try{
+    // Muat data dokumen dulu (kalau belum) supaya deteksi "sudah ada SPB" akurat.
+    if(!DK_LIVE_DOCS || DK_LIVE_DOCS.length===0) await dkFetchLiveDocs().catch(()=>{});
     const json = await dkFetch('/watchlist', {});
-    const list = json.data || [];
-    if(list.length===0){
+    const semua = json.data || [];
+    if(semua.length===0){
       box.innerHTML = `<p style="margin:0;">Belum ada link yang dipantau. Tambahkan lewat form di atas.</p>`;
       return;
     }
-    box.innerHTML = `
+    const list = semua.filter(dkWatchlistTampilAktif);
+    const arsip = semua.filter(w=>!dkWatchlistTampilAktif(w));
+    let html = '';
+    if(list.length===0){
+      html += `<p style="margin:0 0 14px;">Tidak ada link yang masih aktif dipantau saat ini — semuanya sudah lengkap (4 dokumen) lebih dari ${DK_WATCHLIST_ARSIP_JAM} jam.</p>`;
+    } else {
+      html += `
       <table class="ledger">
         <thead><tr><th>Link</th><th>Kepada</th><th>CC</th><th>Terakhir dicek</th><th>Hasil terakhir</th><th></th></tr></thead>
         <tbody>
@@ -8201,8 +9176,25 @@ async function dkRefreshWatchlist(){
           </tr>`).join('')}
         </tbody>
       </table>
-      <p style="font-size:11px;color:var(--ink-soft);margin:10px 0 0;">Sistem mengecek ulang setiap link aktif (dan mencari pengajuan baru) secara otomatis di latar belakang (default tiap 5 menit, selama service backend menyala).</p>
-    `;
+      <p style="font-size:11px;color:var(--ink-soft);margin:10px 0 0;">Sistem mengecek ulang setiap link aktif (dan mencari pengajuan baru) secara otomatis di latar belakang (default tiap 5 menit, selama service backend menyala). Link yang 4 dokumennya (Crewlist/LKK Agen/LK3 Nakhoda/SPB) sudah lengkap lebih dari ${DK_WATCHLIST_ARSIP_JAM} jam otomatis tidak ditampilkan lagi di sini supaya daftar ini cuma berisi yang benar-benar masih ditunggu (belum lengkap) — dokumennya tetap lengkap di "Semua Dokumen"/"Folder per Kapal".</p>`;
+    }
+    if(arsip.length>0){
+      const grup = {};
+      arsip.forEach(w=>{ const nama = dkWatchlistLabelKapal(w); (grup[nama] = grup[nama]||[]).push(w); });
+      html += `
+      <details style="margin-top:16px;">
+        <summary style="cursor:pointer;font-size:12.5px;color:var(--ink-soft);">📁 ${arsip.length} link sudah tidak ditampilkan di daftar aktif (4 dokumen sudah lengkap lebih dari ${DK_WATCHLIST_ARSIP_JAM} jam) — klik untuk lihat per kapal</summary>
+        <div style="margin-top:10px;display:flex;flex-direction:column;gap:6px;">
+          ${Object.keys(grup).sort().map(nama=>`
+            <div style="font-size:12px;color:var(--ink-soft);padding:6px 0;border-bottom:1px solid var(--paper-dim);display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
+              <span>🚢 <b>${escapeHtml(nama)}</b> — ${grup[nama].length} link</span>
+              <button class="btn btn-ghost btn-sm" onclick="goto('dk-riwayat')">Lihat dokumen per kapal</button>
+            </div>
+          `).join('')}
+        </div>
+      </details>`;
+    }
+    box.innerHTML = html;
   }catch(e){
     box.innerHTML = `<p style="margin:0;color:var(--rust-dark);">Gagal memuat: ${escapeHtml(e.message)}</p>`;
   }
@@ -8308,50 +9300,6 @@ function dkSaveConfig(){
   dkRefreshWatchlist();
   dkRenderAutoDetected();
 }
-async function dkTriggerScrape(){
-  const urlInput = document.getElementById('dk-url');
-  const url = urlInput.value.trim();
-  const statusEl = document.getElementById('dk-scan-status');
-  const btn = document.getElementById('dk-scan-btn');
-  if(!url){ toast('Tempel link Pengajuan PKK dari Inaportnet terlebih dahulu.'); return; }
-  btn.disabled = true;
-  statusEl.textContent = 'Sedang mengambil dokumen dari Inaportnet… (bisa memakan waktu 10–30 detik)';
-  try{
-    const json = await dkFetch('/scrape', {
-      method: 'POST',
-      headers: { 'Content-Type':'application/json' },
-      body: JSON.stringify({ url })
-    });
-    // Simpan/ganti metadata hasil scrape ke catatan lokal supaya langsung tampil di folder & riwayat.
-    (json.data||[]).forEach(row=>{
-      const existingIdx = DOKUMEN_KAPAL.records.findIndex(r=>r.nomorPkk===row.nomor_pkk && r.jenisDokumen===row.jenis_dokumen);
-      const rec = {
-        id: existingIdx>=0 ? DOKUMEN_KAPAL.records[existingIdx].id : uidDK(),
-        namaKapal: row.nama_kapal,
-        nomorPkk: row.nomor_pkk,
-        tanggalTerbit: row.tanggal_terbit,
-        jenisDokumen: row.jenis_dokumen,
-        urlFile: row.url_file,
-        remoteId: row.id, // id baris di tabel dokumen_kapal (Supabase, milik backend) — dipakai saat kirim email
-        statusKirimEmail: !!row.status_kirim_email,
-        dikirimKe: row.dikirim_ke || null,
-        diambilOleh: CURRENT_USER.name,
-        diambilPada: new Date().toISOString()
-      };
-      if(existingIdx>=0) DOKUMEN_KAPAL.records[existingIdx] = rec; else DOKUMEN_KAPAL.records.push(rec);
-    });
-    saveDokumenKapalData();
-    statusEl.textContent = '';
-    toast('Berhasil mengambil '+(json.total||0)+' dokumen. Lihat di menu "Folder per Kapal".');
-    urlInput.value = '';
-  }catch(e){
-    statusEl.textContent = '';
-    toast(e.message);
-  }finally{
-    btn.disabled = false;
-  }
-}
-
 /* ===== Tampilan 2: Folder per Kapal ===== */
 function renderDokumenKapalFolder(c, actions){
   c.innerHTML = `<div class="empty-state"><p>Memuat data dokumen dari server…</p></div>`;
@@ -8390,20 +9338,41 @@ function renderDokumenKapalFolder(c, actions){
 
 /* ===== Tampilan 3: Semua Dokumen (riwayat + kirim email) ===== */
 let DK_RIWAYAT_FILTER = { kapal: 'all' };
+// Urutan & label checklist dokumen yang wajib dicetak per PKK, dari yang biasanya di-approve
+// duluan sampai terakhir -- dipakai renderDokumenKapalRiwayat() supaya user langsung lihat
+// dokumen mana yang BELUM di-approve tanpa perlu buka satu-satu. 'PKK-INFO' & 'CREWLIST-TERLAMPIR'
+// sengaja tidak dimasukkan: PKK-INFO cuma placeholder (bukan dokumen sungguhan, lihat catatan di
+// src/supabaseClient.js), CREWLIST-TERLAMPIR adalah lampiran tambahan opsional dari Crewlist.
+const DK_CHECKLIST_JENIS = [
+  { jenis: 'CREWLIST', label: 'Crewlist' },
+  { jenis: 'LKK-AGEN', label: 'LKK Agen' },
+  { jenis: 'LK3-NAKHODA', label: 'LK3 Nakhoda' },
+  { jenis: 'SPB', label: 'SPB' },
+];
+
 function renderDokumenKapalRiwayat(c, actions){
   actions.innerHTML = '';
   c.innerHTML = `<div class="empty-state"><p>Memuat data dokumen dari server…</p></div>`;
-  dkFetchLiveDocs().then(()=>{
+  Promise.all([dkFetchLiveDocs(), dkFetchStatusPengajuan()]).then(()=>{
     if(CURRENT_VIEW !== 'dk-riwayat') return;
     if(DK_LIVE_ERROR){
       c.innerHTML = `<div class="empty-state"><p style="color:var(--rust-dark);">Gagal memuat: ${escapeHtml(DK_LIVE_ERROR)}</p><p style="margin-top:8px;"><button class="btn btn-ghost btn-sm" onclick="render()">Coba lagi</button></p></div>`;
       return;
     }
     const kapalList = dkAllKapal();
-    let list = DK_LIVE_DOCS.slice().sort((a,b)=>(b.tanggalTerbit||'').localeCompare(a.tanggalTerbit||'') || (b.updatedAt||'').localeCompare(a.updatedAt||''));
+    // Diurutkan berdasarkan NOMOR PKK saja (turun / descending) -- format nomor PKK selalu
+    // "PKK.xx.xxxxx.TAHUNBULAN.NNNNNN" dengan lebar digit tetap, jadi urutan teks (string
+    // compare) sudah otomatis = urutan angka juga. Ini supaya PKK yang paling BARU selalu
+    // di paling atas, terlepas dari tanggal terbit dokumennya masing-masing (sebelumnya
+    // diurutkan dari tanggal_terbit -- PKK baru dengan tanggal sama bisa "tenggelam").
+    let list = DK_LIVE_DOCS.slice().sort((a,b)=>(b.nomorPkk||'').localeCompare(a.nomorPkk||'') || (b.updatedAt||'').localeCompare(a.updatedAt||''));
     if(DK_RIWAYAT_FILTER.kapal!=='all') list = list.filter(r=>r.namaKapal===DK_RIWAYAT_FILTER.kapal);
 
     // Kelompokkan per kapal+tanggal supaya bisa dikirim 1 klik sekaligus (4 dokumen jadi 1 email).
+    // CATATAN: baris 'PKK-INFO' (placeholder No PKK yang belum ada dokumen di-approve sama
+    // sekali) TETAP DIIKUTKAN dalam pembentukan grup di sini -- supaya PKK itu tetap muncul
+    // sebagai kartu (dengan checklist semua kosong), BUKAN hilang dari tampilan. Baris itu baru
+    // disaring keluar nanti pas membangun ISI TABEL dokumen per kartu (lihat filter g.items di bawah).
     const groups = {};
     list.forEach(r=>{
       const key = dkGroupKey(r);
@@ -8424,26 +9393,54 @@ function renderDokumenKapalRiwayat(c, actions){
     }
 
     c.innerHTML = groupList.map(g=>{
-      const semuaTerkirim = g.items.every(r=>r.statusKirimEmail);
+      // Baris 'PKK-INFO' cuma placeholder (No PKK terbit tapi belum ada dokumen di-approve sama
+      // sekali) -- disaring dari tabel & dari perhitungan "semua sudah dikirim" di bawah, supaya
+      // tidak nongol sebagai baris dokumen kosong seperti sebelumnya.
+      const dokNyata = g.items.filter(r=>r.jenisDokumen!=='PKK-INFO');
+      const semuaTerkirim = dokNyata.length>0 && dokNyata.every(r=>r.statusKirimEmail);
+
+      // Status Pengajuan/Revisi -- lihat DK_STATUS_MAP (dari GET /status-pengajuan, diisi
+      // discovery.js tiap kali membaca halaman listing Inaportnet). Default 'Pengajuan' kalau
+      // belum ada datanya (mis. baru pertama kali dipantau, status belum sempat kebaca).
+      const statusInfo = DK_STATUS_MAP[g.nomorPkk];
+      const statusPkk = statusInfo?.status || 'Pengajuan';
+      const badgeStatus = statusPkk === 'Revisi'
+        ? `<span style="background:rgba(178,58,47,0.12);color:var(--rust-dark);font-size:11.5px;font-weight:700;padding:4px 10px;border-radius:12px;">⚠ Revisi</span>`
+        : `<span style="background:rgba(59,110,165,0.12);color:#2f5f92;font-size:11.5px;font-weight:700;padding:4px 10px;border-radius:12px;">Pengajuan</span>`;
+
+      // Checklist 4 dokumen wajib: dicentang kalau sudah ada baris dokumen ASLI (bukan PKK-INFO)
+      // untuk jenis itu -- inilah yang dimaksud user sebagai "kolom ceklis" supaya langsung
+      // kelihatan dokumen mana yang belum di-approve tanpa perlu buka satu-satu.
+      const checklistChips = DK_CHECKLIST_JENIS.map(({jenis,label})=>{
+        const sudahAda = dokNyata.some(r=>r.jenisDokumen===jenis);
+        return sudahAda
+          ? `<span style="background:rgba(63,122,77,0.12);color:var(--green-dark);font-size:11px;font-weight:600;padding:3px 9px;border-radius:10px;">✓ ${escapeHtml(label)}</span>`
+          : `<span style="background:rgba(0,0,0,0.05);color:var(--ink-soft);font-size:11px;font-weight:600;padding:3px 9px;border-radius:10px;">☐ ${escapeHtml(label)}</span>`;
+      }).join('');
+
       return `
       <div class="card">
-        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:10px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:8px;">
           <div>
             <p class="card-title" style="margin:0;">🚢 ${escapeHtml(g.namaKapal)} <span style="font-weight:400;color:var(--ink-soft);font-size:12.5px;">— ${fmtDate(g.tanggalTerbit)}</span></p>
             <p style="font-size:11.5px;color:var(--ink-soft);margin:4px 0 0;font-family:var(--font-mono);">No. PKK: ${escapeHtml(g.nomorPkk||'-')}</p>
           </div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap;">
-            ${semuaTerkirim
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+            ${badgeStatus}
+            ${dokNyata.length===0 ? '' : (semuaTerkirim
               ? `<span style="background:rgba(63,122,77,0.12);color:var(--green-dark);font-size:11.5px;font-weight:700;padding:4px 10px;border-radius:12px;align-self:center;">✓ Semua sudah dikirim</span>`
               : `<button class="btn btn-gold btn-sm" onclick="dkKirimEmailGrup('${dkGroupKey(g.items[0]).replace(/'/g,"\\'")}')">📧 Kirim semua ke email</button>`
-            }
-            <button class="btn btn-ghost btn-sm" style="color:#25D366;border-color:#25D366;" onclick="dkKirimWaGrup('${dkGroupKey(g.items[0]).replace(/'/g,"\\'")}')">💬 Kirim via WhatsApp</button>
+            )}
+            ${dokNyata.length===0 ? '' : `<button class="btn btn-ghost btn-sm" style="color:#25D366;border-color:#25D366;" onclick="dkKirimWaGrup('${dkGroupKey(g.items[0]).replace(/'/g,"\\'")}')">💬 Kirim via WhatsApp</button>`}
           </div>
         </div>
-        <table class="ledger">
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">${checklistChips}</div>
+        ${dokNyata.length===0
+          ? `<p style="font-size:12.5px;color:var(--ink-soft);margin:0;">Belum ada dokumen yang di-approve untuk PKK ini -- sistem akan otomatis mengambilnya begitu SPB/LK3/LKK Agen/Crewlist sudah bisa dicetak di Inaportnet.</p>`
+          : `<table class="ledger">
           <thead><tr><th>Jenis Dokumen</th><th>Status</th><th>Dikirim ke</th><th></th></tr></thead>
           <tbody>
-            ${g.items.map(r=>`<tr>
+            ${dokNyata.map(r=>`<tr>
               <td class="name-cell">${dkJenisLabel(r.jenisDokumen)}</td>
               <td>${r.statusKirimEmail
                 ? `<span style="color:var(--green-dark);font-weight:600;font-size:12px;">✓ Terkirim</span>`
@@ -8452,39 +9449,129 @@ function renderDokumenKapalRiwayat(c, actions){
               <td>${r.urlFile ? `<a href="${escapeHtml(r.urlFile)}" target="_blank" rel="noopener" class="btn btn-ghost btn-sm">Lihat PDF</a>` : '-'}</td>
             </tr>`).join('')}
           </tbody>
-        </table>
+        </table>`}
       </div>`;
     }).join('');
   });
 }
+/**
+ * ===== Kirim dokumen ke email — 2 opsi =====
+ * - "Kirim otomatis (server)": SEPERTI SEBELUMNYA -- backend yang login SMTP & kirim email
+ *   sendiri, tanpa perlu buka app email apa pun. TAPI ini cuma bisa berhasil kalau backend
+ *   (PC kantor / server cloud) sedang menyala & terjangkau dari perangkat ini (lihat dkFetch()) --
+ *   di HP lewat data seluler biasanya TIDAK terjangkau kalau backend cuma di LAN.
+ * - "Buka di Gmail (manual)": TIDAK lewat backend sama sekali, jadi selalu bisa dipakai dari
+ *   mana pun. Di HP yang mendukung Web Share API dengan file, PDF-nya disodorkan langsung ke
+ *   menu "Bagikan" (persis seperti kirim WhatsApp di atas) -- pilih Gmail/app email lain,
+ *   lampiran sudah terpasang otomatis, tinggal isi/pilih tujuan & klik kirim sendiri. Di
+ *   PC/HP yang tidak mendukung itu, file diunduh dulu ke Download lalu halaman compose Gmail
+ *   dibuka dengan Kepada/CC/Subjek/Isi sudah terisi -- tinggal lampirkan file yang baru diunduh.
+ *   Konsekuensi: karena tidak lewat backend, status "sudah dikirim" TIDAK otomatis tercatat
+ *   di sistem untuk cara manual ini (beda dengan cara otomatis di atas).
+ */
 function dkKirimEmailGrup(groupKey){
-  const items = DOKUMEN_KAPAL.records.filter(r=>dkGroupKey(r)===groupKey);
+  const items = DK_LIVE_DOCS.filter(r=>dkGroupKey(r)===groupKey && r.jenisDokumen!=='PKK-INFO');
   if(!items.length) return;
   document.getElementById('modal-root').innerHTML = `
     <div class="modal-overlay">
       <div class="modal-box" style="max-width:440px;">
         <h3>Kirim dokumen ke email</h3>
         <p style="font-size:13px;color:var(--ink-soft);margin:0 0 14px;">
-          ${items.length} dokumen untuk kapal <b>${escapeHtml(items[0].namaKapal)}</b> (${fmtDate(items[0].tanggalTerbit)}) akan dikirim sebagai lampiran dalam satu email.
+          ${items.length} dokumen untuk kapal <b>${escapeHtml(items[0].namaKapal)}</b> (${fmtDate(items[0].tanggalTerbit)}).
         </p>
         <div class="form-field full">
-          <label>Kepada — boleh lebih dari satu, dipisah koma</label>
+          <label>Kepada — boleh lebih dari satu, dipisah koma <span style="font-weight:400;color:var(--ink-soft);">(wajib untuk "Kirim otomatis"; boleh dikosongkan untuk "Buka di Gmail" kalau mau pilih tujuan sendiri di app)</span></label>
           <input type="text" id="dk-email-tujuan" placeholder="cth. operasional@pelni.co.id, kapten@pelni.co.id">
         </div>
         <div class="form-field full" style="margin-top:8px;">
           <label>CC (opsional) — boleh lebih dari satu, dipisah koma</label>
           <input type="text" id="dk-email-cc" placeholder="cth. manajer@pelni.co.id">
         </div>
-        <div class="modal-actions">
+        <p style="font-size:11.5px;color:var(--ink-soft);margin:12px 0 0;background:var(--paper-soft,#f6f3ee);padding:8px 10px;border-radius:8px;">
+          <b>Kirim otomatis</b>: server yang kirim sendiri, tapi cuma bisa kalau PC backend sedang menyala &amp; terjangkau dari sini.<br>
+          <b>Buka di Gmail</b>: dokumen disodorkan ke aplikasi email di perangkat ini, kamu sendiri yang tinjau &amp; klik kirim -- selalu bisa dipakai dari mana saja (WiFi maupun data seluler).
+        </p>
+        <div class="modal-actions" style="flex-wrap:wrap;gap:8px;">
           <button class="btn btn-ghost" onclick="closeModal()">Batal</button>
-          <button class="btn btn-gold" id="dk-email-send-btn" onclick="dkConfirmKirimEmail('${groupKey.replace(/'/g,"\\'")}')">Kirim sekarang</button>
+          <button class="btn btn-ghost" id="dk-email-manual-btn" onclick="dkConfirmKirimEmailManual('${groupKey.replace(/'/g,"\\'")}')">📧 Buka di Gmail</button>
+          <button class="btn btn-gold" id="dk-email-send-btn" onclick="dkConfirmKirimEmail('${groupKey.replace(/'/g,"\\'")}')">Kirim otomatis (server)</button>
         </div>
       </div>
     </div>
   `;
 }
+async function dkConfirmKirimEmailManual(groupKey){
+  const items = DK_LIVE_DOCS.filter(r=>dkGroupKey(r)===groupKey && r.jenisDokumen!=='PKK-INFO');
+  const kepada = dkParseDaftarEmail(document.getElementById('dk-email-tujuan').value);
+  const cc = dkParseDaftarEmail(document.getElementById('dk-email-cc').value);
+  const btn = document.getElementById('dk-email-manual-btn');
+  if(kepada.cleaned && !kepada.valid){ toast('Ada format email "Kepada" yang tidak valid. Pisahkan beberapa alamat dengan koma.'); return; }
+  if(cc.cleaned && !cc.valid){ toast('Ada format email "CC" yang tidak valid. Pisahkan beberapa alamat dengan koma.'); return; }
+
+  const subjek = `Dokumen Keberangkatan Kapal ${items[0].namaKapal} - ${fmtDate(items[0].tanggalTerbit)}`;
+  const isiBody = `Terlampir dokumen keberangkatan kapal ${items[0].namaKapal} (${fmtDate(items[0].tanggalTerbit)}):\n`
+    + items.map(r=>`- ${dkJenisLabel(r.jenisDokumen)}`).join('\n');
+  const mobile = dkIsMobileDevice();
+
+  btn.disabled = true; btn.textContent = 'Menyiapkan…';
+
+  // ----- HP: bagikan file PDF ASLI lewat Web Share API, target: Gmail/app email lain -----
+  if(mobile && navigator.share && navigator.canShare){
+    try{
+      const files = [];
+      for(const r of items){
+        if(!r.urlFile) continue;
+        const res = await fetch(r.urlFile);
+        if(!res.ok) throw new Error('gagal ambil file');
+        const blob = await res.blob();
+        const ext = ((r.urlFile.split('?')[0].split('.').pop())||'pdf').slice(0,5);
+        const namaFile = (dkJenisLabel(r.jenisDokumen)+'-'+items[0].namaKapal+'.'+ext).replace(/[^\w.\-]+/g,'_');
+        files.push(new File([blob], namaFile, { type: blob.type || 'application/pdf' }));
+      }
+      if(files.length && navigator.canShare({ files })){
+        await navigator.share({ files, text: isiBody, title: subjek });
+        closeModal();
+        toast('Menu berbagi dibuka — pilih Gmail (atau app email lain). Lampiran sudah terpasang, tinggal isi/pilih tujuan lalu kirim sendiri. Catatan: status "terkirim" tidak otomatis tercatat untuk cara manual ini.');
+        return;
+      }
+    }catch(e){
+      if(e && e.name === 'AbortError'){
+        btn.disabled = false; btn.textContent = '📧 Buka di Gmail';
+        return;
+      }
+      // File gagal diambil / share ditolak -> lanjut ke fallback di bawah.
+    }
+  }
+
+  // ----- PC (atau HP tanpa dukungan share file): unduh file asli dulu, baru buka Gmail compose -----
+  let berhasilUnduh = 0;
+  for(const r of items){
+    if(!r.urlFile) continue;
+    const ext = ((r.urlFile.split('?')[0].split('.').pop())||'pdf').slice(0,5);
+    const namaFile = (dkJenisLabel(r.jenisDokumen)+'-'+items[0].namaKapal+'.'+ext).replace(/[^\w.\-]+/g,'_');
+    try{
+      await dkUnduhFileAsli(r.urlFile, namaFile);
+      berhasilUnduh++;
+      await new Promise(res=>setTimeout(res, 400)); // jeda kecil supaya browser tidak memblokir unduhan beruntun
+    }catch(e){ /* lanjut ke file berikutnya walau satu gagal */ }
+  }
+
+  const gmailUrl = 'https://mail.google.com/mail/?view=cm&fs=1'
+    + '&to=' + encodeURIComponent(kepada.cleaned || '')
+    + (cc.cleaned ? '&cc=' + encodeURIComponent(cc.cleaned) : '')
+    + '&su=' + encodeURIComponent(subjek)
+    + '&body=' + encodeURIComponent(isiBody);
+  window.open(gmailUrl, '_blank');
+
+  closeModal();
+  if(berhasilUnduh>0){
+    toast(berhasilUnduh+' file PDF sudah diunduh ke folder Download. Gmail dibuka — lampirkan filenya sendiri lewat 📎, lalu klik Kirim.');
+  }else{
+    toast('Gmail dibuka, tapi file PDF gagal diunduh otomatis — buka link dokumennya manual lalu unduh dari sana untuk dilampirkan.');
+  }
+}
 async function dkConfirmKirimEmail(groupKey){
-  const items = DK_LIVE_DOCS.filter(r=>dkGroupKey(r)===groupKey);
+  const items = DK_LIVE_DOCS.filter(r=>dkGroupKey(r)===groupKey && r.jenisDokumen!=='PKK-INFO');
   const kepada = dkParseDaftarEmail(document.getElementById('dk-email-tujuan').value);
   const cc = dkParseDaftarEmail(document.getElementById('dk-email-cc').value);
   const btn = document.getElementById('dk-email-send-btn');
@@ -8501,7 +9588,12 @@ async function dkConfirmKirimEmail(groupKey){
     await dkFetch('/kirim-email', {
       method: 'POST',
       headers: { 'Content-Type':'application/json' },
-      body: JSON.stringify({ dokumenIds, emailTujuan: kepada.cleaned, emailCc: cc.cleaned })
+      body: JSON.stringify({ dokumenIds, emailTujuan: kepada.cleaned, emailCc: cc.cleaned }),
+      // Lebih longgar dari default 3 detik: proses ini melampirkan beberapa PDF & kirim lewat
+      // SMTP di server, jadi wajar butuh lebih dari 3 detik walau backend-nya sehat-sehat saja.
+      // Endpoint lain TIDAK diubah -- tetap pakai default 3 detik supaya jalur cadangan
+      // (baca langsung dari Supabase) tetap cepat dicoba kalau backend memang mati.
+      timeoutMs: 25000
     });
     items.forEach(r=>{ r.statusKirimEmail = true; r.dikirimKe = kepada.cleaned; });
     closeModal();
@@ -8552,7 +9644,7 @@ async function dkUnduhFileAsli(url, namaFile){
   setTimeout(()=>URL.revokeObjectURL(objUrl), 15000);
 }
 function dkKirimWaGrup(groupKey){
-  const items = DK_LIVE_DOCS.filter(r=>dkGroupKey(r)===groupKey);
+  const items = DK_LIVE_DOCS.filter(r=>dkGroupKey(r)===groupKey && r.jenisDokumen!=='PKK-INFO');
   if(!items.length) return;
   const nomorTersimpan = localStorage.getItem('dk_wa_nomor_terakhir') || '';
   const mobile = dkIsMobileDevice();
@@ -8564,12 +9656,12 @@ function dkKirimWaGrup(groupKey){
           ${items.length} dokumen untuk kapal <b>${escapeHtml(items[0].namaKapal)}</b> (${fmtDate(items[0].tanggalTerbit)}).
         </p>
         <div class="form-field full">
-          <label>Nomor WhatsApp tujuan ${mobile ? '' : '<span style="font-weight:400;color:var(--ink-soft);">(opsional — kosongkan kalau mau pilih kontak sendiri dari WhatsApp Web)</span>'}</label>
+          <label>Nomor WhatsApp tujuan <span style="font-weight:400;color:var(--ink-soft);">(opsional — kosongkan kalau mau pilih kontak sendiri dari ${mobile ? 'WhatsApp' : 'WhatsApp Web'})</span></label>
           <input type="text" id="dk-wa-nomor" placeholder="cth. 08123456789" value="${escapeHtml(nomorTersimpan)}">
         </div>
         <p style="font-size:11.5px;color:var(--ink-soft);margin:10px 0 0;background:var(--paper-soft,#f6f3ee);padding:8px 10px;border-radius:8px;">
           ${mobile
-            ? 'Perangkat terdeteksi: <b>HP</b>. File PDF akan disiapkan lalu langsung disodorkan ke menu "Bagikan" — pilih WhatsApp dan kirim ke kontak tujuan.'
+            ? 'Perangkat terdeteksi: <b>HP</b>. File PDF akan disiapkan lalu langsung disodorkan ke menu "Bagikan" — pilih WhatsApp, lalu pilih sendiri kontak tujuannya di sana (nomor di atas cuma dipakai kalau HP ini ternyata tidak mendukung bagikan file langsung).'
             : 'Perangkat terdeteksi: <b>Komputer</b>. File PDF akan diunduh asli ke folder Download, lalu WhatsApp Web dibuka di tab yang sama (kalau sudah ada tab WA Web terbuka, tidak akan buka tab baru lagi) — lampirkan filenya sendiri lewat 📎.'}
         </p>
         <div class="modal-actions">
@@ -8581,14 +9673,14 @@ function dkKirimWaGrup(groupKey){
   `;
 }
 async function dkConfirmKirimWa(groupKey){
-  const items = DK_LIVE_DOCS.filter(r=>dkGroupKey(r)===groupKey);
+  const items = DK_LIVE_DOCS.filter(r=>dkGroupKey(r)===groupKey && r.jenisDokumen!=='PKK-INFO');
   const nomorInput = document.getElementById('dk-wa-nomor');
   const nomorRaw = (nomorInput.value||'').trim();
   const btn = document.getElementById('dk-wa-send-btn');
   const mobile = dkIsMobileDevice();
 
-  // Nomor wajib diisi kalau di HP (dipakai target Web Share); di PC nomor boleh kosong.
-  if(mobile && !nomorRaw){ toast('Nomor WhatsApp tujuan wajib diisi.'); return; }
+  // Nomor selalu opsional -- baik di HP maupun PC, kontak tujuan tetap bisa dipilih manual
+  // dari dalam WhatsApp/WhatsApp Web setelah dibuka.
   let nomor = '';
   if(nomorRaw){
     nomor = dkBersihkanNomorWa(nomorRaw);
@@ -8617,7 +9709,7 @@ async function dkConfirmKirimWa(groupKey){
       if(files.length && navigator.canShare({ files })){
         await navigator.share({ files, text: teks, title: 'Dokumen Kapal '+items[0].namaKapal });
         closeModal();
-        toast('Menu berbagi dibuka — pilih WhatsApp lalu kirim ke '+nomorRaw+'.');
+        toast('Menu berbagi dibuka — pilih WhatsApp'+(nomorRaw ? ' lalu kirim ke '+nomorRaw : ', lalu pilih sendiri kontak tujuannya')+'.');
         return;
       }
     }catch(e){
@@ -8631,7 +9723,7 @@ async function dkConfirmKirimWa(groupKey){
     const urlFallbackHp = 'https://api.whatsapp.com/send?phone='+encodeURIComponent(nomor)+'&text='+encodeURIComponent(teks);
     window.open(urlFallbackHp, '_blank');
     closeModal();
-    toast('HP ini tidak mendukung kirim file langsung, jadi dibuka pesan berisi link dokumen ke '+nomorRaw+'.');
+    toast('HP ini tidak mendukung kirim file langsung, jadi dibuka pesan berisi link dokumen'+(nomorRaw ? ' ke '+nomorRaw : ' — pilih sendiri kontak tujuannya di WhatsApp')+'.');
     return;
   }
 
@@ -8717,6 +9809,7 @@ function checkPnbpReminders(force){
         </table>
         <div class="modal-actions">
           <button class="btn btn-ghost" onclick="closeModal()">Tutup</button>
+          <button class="btn btn-ghost" onclick="kirimPengingatWa('pnbp')">💬 Kirim ringkasan via WhatsApp</button>
           <button class="btn btn-gold" onclick="closeModal(); goto('pnbp');">Lihat & perbarui status</button>
         </div>
       </div>
@@ -8762,6 +9855,10 @@ function renderPnbp(c, actions){
         <button class="btn btn-gold" onclick="submitPnbp()">Simpan catatan</button>
       </div>
     </div>` : ''}
+    <div class="filter-row" style="justify-content:flex-end;">
+      <button class="btn btn-ghost btn-sm" onclick="checkPnbpReminders(true)">Cek pengingat sekarang</button>
+      <button class="btn btn-ghost btn-sm" onclick="kirimPengingatWa('pnbp')">💬 Kirim pengingat via WhatsApp</button>
+    </div>
     <div class="card" style="padding:0;overflow:auto;">
       <table class="ledger">
         <thead><tr>
@@ -8812,7 +9909,7 @@ function pnbpRowHtml(r){
       <button class="btn btn-sm ${r.confirmPetugas.done?'btn-green':'btn-ghost'}" ${pnbpCanConfirmSide('petugas')?'':'disabled title="Hanya Petugas/Ka. Operasional yang bisa mengubah ini"'} onclick="pnbpToggleConfirm('${r.id}','petugas')">${r.confirmPetugas.done?'✓ Petugas':'Konfirmasi Petugas'}</button>
       <button class="btn btn-sm ${r.confirmGiro.done?'btn-green':'btn-ghost'}" style="margin-top:4px;" ${pnbpCanConfirmSide('giro')?'':'disabled title="Hanya akun Giro (Kasir) yang bisa mengubah ini"'} onclick="pnbpToggleConfirm('${r.id}','giro')">${r.confirmGiro.done?'✓ Giro/Kasir':'Konfirmasi Giro/Kasir'}</button>
     </td>
-    <td><button class="btn btn-sm btn-rust" onclick="deletePnbp('${r.id}')">Hapus</button></td>
+    <td>${canManageRecord(r) ? `<button class="btn btn-sm btn-rust" onclick="deletePnbp('${r.id}')">Hapus</button>` : `<span style="font-size:11px;color:var(--ink-soft);">Milik ${escapeHtml(r.dibuatOleh||'petugas lain')}</span>`}</td>
   </tr>`;
 }
 function submitPnbp(){
@@ -9002,7 +10099,7 @@ function taliRowHtml(r){
     <td class="name-cell">${escapeHtml(r.kapal||'-')}</td>
     <td>${taliJenisLabel(r.jenis)}</td>
     ${TALI.petugas.map(nama=>`<td style="text-align:center;">${(r.ikut||[]).includes(nama) ? '✅' : '—'}</td>`).join('')}
-    <td><button class="btn btn-sm btn-rust" onclick="deleteTali('${r.id}')">Hapus</button></td>
+    <td>${canManageRecord(r) ? `<button class="btn btn-sm btn-rust" onclick="deleteTali('${r.id}')">Hapus</button>` : `<span style="font-size:11px;color:var(--ink-soft);">Milik ${escapeHtml(r.dibuatOleh||'petugas lain')}</span>`}</td>
   </tr>`;
 }
 async function submitTali(){
@@ -9969,7 +11066,8 @@ const INIT_DATA_LOADED = Promise.all([
   loadNotaDinasData(),
   loadPnbpData(),
   loadDokumenKapalData(),
-  loadTaliData()
+  loadTaliData(),
+  loadLogoSettings()
 ]);
 INIT_DATA_LOADED.then(initRealtimeSync);
 
@@ -10001,9 +11099,10 @@ initPublicSlipIfNeeded();
   resetIdleTimer();
   document.getElementById('login-screen').classList.add('hidden');
   document.getElementById('app-shell').classList.remove('hidden');
-  document.getElementById('who-name').textContent = u.name+' ('+u.nrp+')';
+  document.getElementById('who-name').textContent = u.name;
   document.getElementById('who-role').textContent = roleLabel(u.role).toUpperCase() + (u.isAdmin ? ' · ADMIN' : '');
   document.querySelectorAll('.nav-item[data-view="pengaturan"]').forEach(n=> n.style.display = u.isAdmin ? '' : 'none');
+  document.querySelectorAll('.nav-item[data-view="log-aktivitas"]').forEach(n=> n.style.display = u.isAdmin ? '' : 'none');
   applyAccessVisibility();
   if(u.isAdmin){ initAdminAiChat(); } else { hideAdminAiChat(); }
 
@@ -10091,12 +11190,6 @@ function vaBestViewMatch(transcript){
   });
   return best; // { id, ratio, score } atau null -- pemanggil yang menentukan ambang batasnya
 }
-// Versi lama: langsung berikan id kalau kemiripannya cukup meyakinkan (>=0.5), kalau tidak null.
-function vaMatchView(transcript){
-  const best = vaBestViewMatch(transcript);
-  return (best && best.ratio>=0.5) ? best.id : null;
-}
-
 function vaSetStatus(text, transcript){
   const statusEl = document.getElementById('voice-bubble-status');
   const transEl = document.getElementById('voice-bubble-transcript');
