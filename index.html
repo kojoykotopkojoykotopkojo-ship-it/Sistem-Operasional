@@ -8767,6 +8767,71 @@ function dkApiKey(){ return (DOKUMEN_KAPAL.config && DOKUMEN_KAPAL.config.apiKey
 // berikutnya supaya tidak perlu mencoba ulang alamat yang sudah diketahui mati setiap kali.
 let DK_LAST_WORKING_URL = null;
 
+/* ===== Kontrol jarak jauh lewat Supabase (dk_perintah) -- tanpa ngrok/VPS ===== */
+// Dipakai sebagai JALUR CADANGAN oleh dkFetch() di bawah, KHUSUS untuk aksi-aksi watchlist
+// (Pantau Otomatis) + beberapa bacaan lain, saat SEMUA alamat backend langsung (dkApiBaseList())
+// gagal dihubungi -- kondisi ini SELALU terjadi kalau HP memakai paket data (bukan WiFi kantor),
+// karena alamat backend selalu berupa IP privat (192.168.x.x) yang memang tidak pernah bisa
+// dijangkau dari luar jaringan itu. Lihat migrasi-dk-perintah.sql & src/commandListener.js
+// (backend) untuk penjelasan lengkap alurnya.
+//
+// PENTING: jalur ini menitipkan PERINTAH (bukan cuma baca data) ke Supabase -- backend PC yang
+// benar-benar mengeksekusinya, sama persis seperti kalau tombolnya ditekan langsung di PC. Kalau
+// PC/service backend sedang mati, perintah ini akan menunggu sampai waktu habis lalu gagal --
+// TIDAK ADA cara mengakali ini, karena memang tidak ada komputer yang bisa menjalankannya.
+function dkPerintahDariPath(path, options){
+  options = options || {};
+  const method = (options.method || 'GET').toUpperCase();
+  let body = {};
+  if(options.body){
+    try{ body = JSON.parse(options.body); }catch(e){ body = {}; }
+  }
+  if(path==='/watchlist' && method==='GET') return { aksi:'watchlist_list', payload:{}, timeoutMs:20000 };
+  if(path==='/watchlist' && method==='POST') return { aksi:'watchlist_add', payload:body, timeoutMs:120000 };
+  if(path==='/dokumen' && method==='GET') return { aksi:'dokumen_list', payload:{}, timeoutMs:20000 };
+  if(path==='/status-pengajuan' && method==='GET') return { aksi:'status_pengajuan', payload:{}, timeoutMs:20000 };
+  if(path==='/discovery/jalankan' && method==='POST') return { aksi:'discovery_jalankan', payload:{}, timeoutMs:150000 };
+  let m = path.match(/^\/watchlist\/([^/]+)\/check-now$/);
+  if(m && method==='POST') return { aksi:'watchlist_check_now', payload:{ id:m[1] }, timeoutMs:120000 };
+  m = path.match(/^\/watchlist\/([^/]+)$/);
+  if(m && method==='PATCH') return { aksi:'watchlist_toggle', payload:{ id:m[1], active: !!body.active }, timeoutMs:20000 };
+  if(m && method==='DELETE') return { aksi:'watchlist_delete', payload:{ id:m[1] }, timeoutMs:20000 };
+  return null; // path/metode ini belum didukung lewat jalur cadangan -- dkFetch akan tetap
+               // melempar pesan error jaringan biasa seperti sebelumnya untuk kasus ini.
+}
+/**
+ * Titipkan satu perintah ke tabel dk_perintah, lalu tunggu (polling) sampai backend PC selesai
+ * mengerjakannya dan menulis hasilnya balik ke baris yang sama. Melempar error kalau backend
+ * menandai gagal, atau kalau tidak ada balasan sama sekali sampai batas waktu (kemungkinan besar
+ * PC/service backend-nya memang sedang mati -- tidak ada jalur mana pun yang bisa mengakali ini).
+ */
+async function dkKirimPerintah(aksi, payload, timeoutMs){
+  if(!sbClient) throw new Error('Supabase belum dikonfigurasi -- tidak bisa dipakai sebagai jalur cadangan.');
+  const apiKey = dkApiKey();
+  if(!apiKey) throw new Error('Isi dulu API Key di Pengaturan -- diperlukan supaya perintah dari HP ini bisa diverifikasi oleh PC.');
+  const { data: row, error } = await sbClient
+    .from('dk_perintah')
+    .insert({ aksi, payload: payload||{}, api_key: apiKey, status:'menunggu' })
+    .select()
+    .single();
+  if(error) throw new Error('Gagal mengirim perintah lewat Supabase: '+error.message);
+
+  const JEDA_POLLING_MS = 700;
+  const batasWaktu = Date.now() + (timeoutMs || 20000);
+  while(Date.now() < batasWaktu){
+    await new Promise(r=>setTimeout(r, JEDA_POLLING_MS));
+    const { data: cek, error: cekErr } = await sbClient
+      .from('dk_perintah')
+      .select('status,hasil,error')
+      .eq('id', row.id)
+      .maybeSingle();
+    if(cekErr || !cek) continue; // gangguan sesaat baca status -- coba lagi di putaran berikutnya
+    if(cek.status==='selesai') return cek.hasil || {};
+    if(cek.status==='gagal') throw new Error(cek.error || 'Perintah gagal diproses oleh PC.');
+    // status 'menunggu' atau 'diproses' -- PC belum selesai, lanjut tunggu.
+  }
+  throw new Error('PC tidak membalas perintah ini dalam waktu yang ditentukan -- kemungkinan besar komputer/service backend-nya sedang mati atau tidak terhubung internet.');
+}
 /**
  * Pembungkus fetch() terpusat untuk semua panggilan ke backend dokumen-kapal-service.
  * - Selalu menyertakan header x-api-key.
@@ -8782,6 +8847,11 @@ let DK_LAST_WORKING_URL = null;
  *   terjangkau (mis. laptop utama sedang mati), otomatis mencoba alamat berikutnya di
  *   dkApiBaseList() satu per satu sampai salah satu berhasil merespons. Kalau SEMUA alamat
  *   gagal dihubungi, baru dianggap error jaringan (bukan cuma alamat pertama).
+ * - KALAU SEMUA ALAMAT LANGSUNG GAGAL (mis. HP di luar WiFi kantor, pakai paket data): untuk
+ *   path/metode yang didukung (lihat dkPerintahDariPath()), otomatis mencoba JALUR CADANGAN
+ *   lewat Supabase (dkKirimPerintah()) sebelum benar-benar menyerah -- inilah yang membuat tab
+ *   "Pantau Otomatis" tetap bisa dipakai penuh (Cek sekarang/Jeda/Lanjutkan/Hapus/dst) dari
+ *   Android/iOS di mana saja, tanpa ngrok/VPS.
  */
 async function dkFetch(path, options){
   options = options || {};
@@ -8799,8 +8869,9 @@ async function dkFetch(path, options){
   // backend berupa IP privat (192.168.x.x) TIDAK PERNAH bisa dijangkau dari luar jaringan
   // itu, tapi tanpa batas waktu eksplisit, fetch() ke alamat semacam itu bisa menggantung
   // lama sekali (tergantung operator seluler) sebelum browser menyerah sendiri -- membuat
-  // jalur cadangan (baca langsung dari Supabase, lihat dkFetchLiveDocs()) baru dicoba jauh
-  // kemudian, terasa seperti "tidak ada data" padahal sebenarnya baru menunggu koneksi mati.
+  // jalur cadangan (baca langsung dari Supabase, lihat dkFetchLiveDocs(), dan sekarang juga
+  // jalur perintah dkKirimPerintah()) baru dicoba jauh kemudian, terasa seperti "tidak ada
+  // data"/"tidak bisa kontrol" padahal sebenarnya baru menunggu koneksi mati.
   // CATATAN: 3 detik ini sengaja dibuat PENDEK sebagai default karena dipakai hampir semua
   // endpoint (baca data dsb) yang memang harus cepat gagal supaya jalur cadangan cepat dicoba.
   // Endpoint yang butuh waktu proses lebih lama di server (mis. /kirim-email -- harus lampirkan
@@ -8831,7 +8902,22 @@ async function dkFetch(path, options){
     DK_LAST_WORKING_URL = base; // ingat alamat yang berhasil untuk panggilan berikutnya
     return json;
   }
-  // Semua alamat di daftar gagal dihubungi.
+  // Semua alamat LANGSUNG gagal dihubungi -- coba jalur cadangan lewat Supabase kalau path/metode
+  // ini didukung (mis. HP sedang pakai paket data, di luar WiFi kantor).
+  const perintah = dkPerintahDariPath(path, options);
+  if(perintah){
+    try{
+      return await dkKirimPerintah(perintah.aksi, perintah.payload, perintah.timeoutMs);
+    }catch(relayErr){
+      const daftarTeks = daftarAlamat.join(', ');
+      throw new Error(
+        (daftarAlamat.length>1
+          ? 'Tidak bisa menjangkau service backend langsung di alamat manapun ('+daftarTeks+'), '
+          : 'Tidak bisa menjangkau service backend langsung di '+daftarTeks+', ') +
+        'dan jalur cadangan lewat Supabase juga gagal: '+relayErr.message
+      );
+    }
+  }
   const daftarTeks = daftarAlamat.join(', ');
   throw new Error(
     daftarAlamat.length>1
@@ -8927,7 +9013,13 @@ function dkAllKapal(){
   return Array.from(set).sort();
 }
 function dkRecordsForKapal(nama){
-  return DK_LIVE_DOCS.filter(r=>r.namaKapal===nama);
+  // PKK-INFO dikecualikan dari sini: itu cuma baris placeholder ("No PKK sudah terbit,
+  // dokumen belum di-approve") -- bukan dokumen sungguhan, jadi tidak boleh ikut dihitung
+  // di badge "X dokumen tercatat" ataupun badge "belum dikirim" pada Folder per Kapal.
+  // Normalnya baris ini otomatis dihapus backend begitu dokumen asli pertama masuk (lihat
+  // hapusInfoPkkSaja() di src/supabaseClient.js) -- filter ini cuma jaga-jaga tambahan kalau
+  // proses hapus itu gagal/nyangkut sesaat, supaya tampilan tetap benar walau ada baris nyangkut.
+  return DK_LIVE_DOCS.filter(r=>r.namaKapal===nama && r.jenisDokumen!=='PKK-INFO');
 }
 function dkGroupKey(r){ return (r.nomorPkk||'')+'||'+r.namaKapal; }
 function dkJenisLabel(j){
@@ -9072,7 +9164,7 @@ function dkFmtWaktu(iso){
    CATATAN TEKNIS: fungsi ini membaca field nomor_pkk & created_at dari respons /watchlist
    KALAU backend menyediakannya. Kalau belum ada, sistem mencocokkan lewat nama kapal yang
    tertera di label link (sedikit kurang presis, tapi tetap berjalan). */
-const DK_WATCHLIST_ARSIP_JAM = 8;
+const DK_WATCHLIST_ARSIP_JAM = 12;
 // Urutan & label 4 dokumen wajib -- dipakai juga di renderDokumenKapalRiwayat() (lihat
 // DK_CHECKLIST_JENIS di atas). Didefinisikan ulang di sini (bukan dipakai bersama) supaya
 // modul watchlist tidak bergantung urutan definisi dengan modul riwayat di file ini.
@@ -9113,16 +9205,26 @@ function dkWatchlistDokumenTerkait(w){
  */
 function dkWatchlistLengkap(w){
   const hasil = (w.last_result || '').toLowerCase();
-  if(hasil.includes('4 dokumen wajib') && hasil.includes('lengkap')) return true;
+  if(hasil.includes('otomatis dijeda')) return true; // backend sendiri sudah putuskan ini selesai -- percaya langsung, apa pun redaksi kalimatnya (bisa "4 dokumen wajib ... lengkap" atau "SPB sudah terbit ... tanpa ada perubahan")
   const dokumen = dkWatchlistDokumenTerkait(w);
   return DK_JENIS_WAJIB.every(jenis=>dokumen.some(r=>r.jenisDokumen===jenis));
 }
 /**
- * Jam sejak dokumen TERAKHIR dari 4 dokumen wajib itu tersimpan/diperbarui -- hanya berarti
- * kalau dkWatchlistLengkap(w) sudah true. Dihitung dari field updatedAt (fallback createdAt)
- * yang paling BARU di antara ke-4 dokumen wajib itu.
+ * Jam sejak watchlist ini dianggap SELESAI (baik "4 dokumen wajib lengkap" maupun "SPB
+ * terbit tanpa perubahan lagi", tergantung versi backend yang sedang jalan -- keduanya
+ * sama-sama ditandai kata "Otomatis dijeda" oleh backend, lihat checkSatuWatchlist() di
+ * src/index.js). Hanya berarti kalau dkWatchlistLengkap(w) sudah true.
  */
 function dkWatchlistJamSejakLengkap(w){
+  // Sumber PALING ANDAL: angka jam PERTAMA yang disebut backend sendiri di teks "Hasil
+  // terakhir" saat auto-jeda terjadi -- apa pun redaksi kalimatnya, polanya selalu "...N
+  // jam lalu...". Pakai ini DULU kalau ada. SEBELUMNYA kode ini bergantung ke pencocokan
+  // dokumen di DK_LIVE_DOCS (lewat nomor_pkk/nama kapal), yang bisa diam-diam GAGAL cocok
+  // dan membuat baris yang jelas-jelas sudah lama selesai (kata backend sendiri) tetap
+  // dianggap "belum tahu umurnya" dan tidak pernah diarsipkan.
+  const cocokTeks = (w.last_result || '').match(/([\d.]+)\s*jam lalu/i);
+  if(cocokTeks) return parseFloat(cocokTeks[1]);
+  if(/otomatis dijeda/i.test(w.last_result || '')) return DK_WATCHLIST_ARSIP_JAM; // sudah ditandai selesai tapi entah kenapa tidak ada angka jam di teksnya -- anggap sudah pas di ambang batas, supaya tidak nyangkut selamanya
   const dokumen = dkWatchlistDokumenTerkait(w).filter(r=>DK_JENIS_WAJIB.includes(r.jenisDokumen));
   const waktu = dokumen.map(r=>new Date(r.updatedAt||0).getTime()).filter(t=>!isNaN(t) && t>0);
   if(!waktu.length) return null;
@@ -9163,7 +9265,17 @@ async function dkRefreshWatchlist(){
         <thead><tr><th>Link</th><th>Kepada</th><th>CC</th><th>Terakhir dicek</th><th>Hasil terakhir</th><th></th></tr></thead>
         <tbody>
           ${list.map(w=>`<tr ${!w.active?'style="opacity:.5;"':''}>
-            <td class="name-cell" style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(w.url)}">${escapeHtml(w.label || w.url)}</td>
+            <td class="name-cell" style="max-width:260px;" title="${escapeHtml(w.url)}">${(()=>{
+              // Label disimpan backend dengan format "NAMA KAPAL - NOMOR PKK" (lihat src/discovery.js).
+              // Dipisah di sini supaya tampil rapi 2 baris: nama kapal tebal di atas, nomor PKK
+              // lebih kecil di bawahnya -- daripada satu baris panjang yang harus di-wrap/dipotong.
+              const sumber = w.label || w.url;
+              const pisah = sumber.split(' - ');
+              const namaKapal = pisah[0] || sumber;
+              const sisaLabel = pisah.slice(1).join(' - ');
+              return `<div style="font-weight:700;">${escapeHtml(namaKapal)}</div>` +
+                (sisaLabel ? `<div style="font-size:11px;color:var(--ink-soft);word-break:break-all;margin-top:2px;">${escapeHtml(sisaLabel)}</div>` : '');
+            })()}</td>
             <td style="font-size:12px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(w.auto_email_to || '')}">${escapeHtml(w.auto_email_to || '-')}</td>
             <td style="font-size:12px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(w.auto_email_cc || '')}">${escapeHtml(w.auto_email_cc || '-')}</td>
             <td style="font-size:11.5px;white-space:nowrap;">${dkFmtWaktu(w.last_checked_at)}</td>
