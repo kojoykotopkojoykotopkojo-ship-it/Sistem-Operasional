@@ -9603,6 +9603,34 @@ const DK_CHECKLIST_JENIS = [
   { jenis: 'LK3-NAKHODA', label: 'LK3 Nakhoda' },
   { jenis: 'SPB', label: 'SPB' },
 ];
+/**
+ * Status yang DITAMPILKAN di kartu "Semua Dokumen" -- SENGAJA TIDAK sekadar menempel teks
+ * mentah hasil scraping listing Inaportnet apa adanya (biasanya isinya cuma "Pengajuan" terus,
+ * tidak berubah walau dokumennya sudah lengkap semua -- ini yang bikin bingung sebelumnya).
+ *
+ * Aturannya (sesuai kelengkapan dokumen ASLI yang sudah benar-benar tercetak & tersimpan --
+ * BUKAN sekadar "terkirim"/"disetujui" di tahap Inaportnet yang belum tentu sudah bisa dicetak):
+ *   - REVISI  : kalau Inaportnet sedang menandai pengajuan ini revisi (satu-satunya yang memang
+ *               HARUS diambil dari status mentah Inaportnet, karena "revisi" adalah event yang
+ *               cuma kelihatan di listing-nya, bukan dari kelengkapan dokumen kita sendiri).
+ *   - SELESAI : kalau KEEMPAT dokumen wajib (Crewlist, LKK Agen, LK3 Nakhoda, SPB) SUDAH
+ *               tercetak & tersimpan semua -- tidak peduli sudah dikirim ke email atau belum.
+ *   - PROSES  : selain dua kondisi di atas -- termasuk kalau di Inaportnet sudah tertulis
+ *               "SPB & LK3 terkirim" atau "SPB terkirim & LK3 disetujui" tapi PDF SPB/LK3-nya
+ *               sendiri belum berhasil dicetak & tersimpan di sini (masih di tahap sebelum
+ *               "bisa dicetak"), sampai keempat dokumennya benar-benar lengkap.
+ */
+function dkHitungStatusTampilan(nomorPkk, dokNyata){
+  const statusInfo = DK_STATUS_MAP[nomorPkk];
+  if(statusInfo && statusInfo.status === 'Revisi') return 'Revisi';
+  const lengkapSemua = DK_CHECKLIST_JENIS.every(({jenis})=> dokNyata.some(r=>r.jenisDokumen===jenis));
+  return lengkapSemua ? 'Selesai' : 'Proses';
+}
+function dkBadgeStatus(status){
+  if(status==='Revisi') return `<span style="background:rgba(178,58,47,0.12);color:var(--rust-dark);font-size:11.5px;font-weight:700;padding:4px 10px;border-radius:12px;">⚠ Revisi</span>`;
+  if(status==='Selesai') return `<span style="background:rgba(63,122,77,0.12);color:var(--green-dark);font-size:11.5px;font-weight:700;padding:4px 10px;border-radius:12px;">✓ Selesai</span>`;
+  return `<span style="background:rgba(59,110,165,0.12);color:#2f5f92;font-size:11.5px;font-weight:700;padding:4px 10px;border-radius:12px;">⏳ Proses</span>`;
+}
 
 function renderDokumenKapalRiwayat(c, actions){
   actions.innerHTML = '';
@@ -9653,14 +9681,11 @@ function renderDokumenKapalRiwayat(c, actions){
       const dokNyata = g.items.filter(r=>r.jenisDokumen!=='PKK-INFO');
       const semuaTerkirim = dokNyata.length>0 && dokNyata.every(r=>r.statusKirimEmail);
 
-      // Status Pengajuan/Revisi -- lihat DK_STATUS_MAP (dari GET /status-pengajuan, diisi
-      // discovery.js tiap kali membaca halaman listing Inaportnet). Default 'Pengajuan' kalau
-      // belum ada datanya (mis. baru pertama kali dipantau, status belum sempat kebaca).
-      const statusInfo = DK_STATUS_MAP[g.nomorPkk];
-      const statusPkk = statusInfo?.status || 'Pengajuan';
-      const badgeStatus = statusPkk === 'Revisi'
-        ? `<span style="background:rgba(178,58,47,0.12);color:var(--rust-dark);font-size:11.5px;font-weight:700;padding:4px 10px;border-radius:12px;">⚠ Revisi</span>`
-        : `<span style="background:rgba(59,110,165,0.12);color:#2f5f92;font-size:11.5px;font-weight:700;padding:4px 10px;border-radius:12px;">Pengajuan</span>`;
+      // Status yang ditampilkan: SELESAI/PROSES dihitung dari kelengkapan dokumen ASLI yang
+      // sudah tercetak (lihat dkHitungStatusTampilan()) -- REVISI tetap diambil dari status
+      // mentah Inaportnet karena itu satu-satunya sumber yang benar untuk itu.
+      const statusTampilan = dkHitungStatusTampilan(g.nomorPkk, dokNyata);
+      const badgeStatus = dkBadgeStatus(statusTampilan);
 
       // Checklist 4 dokumen wajib: dicentang kalau sudah ada baris dokumen ASLI (bukan PKK-INFO)
       // untuk jenis itu -- inilah yang dimaksud user sebagai "kolom ceklis" supaya langsung
