@@ -1674,7 +1674,7 @@ async function saveNotaDinasData(){
    ringan). File PDF disimpan di Supabase Storage oleh service backend (lihat folder
    dokumen-kapal-service/), lalu hanya metadata + link/status yang dicatat di sini supaya
    tampil di UI ini. */
-let DOKUMEN_KAPAL = { config: { apiBaseUrl:'http://localhost:3001', apiBaseUrls:['http://localhost:3001'], apiKey:'' }, records: [] };
+let DOKUMEN_KAPAL = { config: { apiBaseUrl:'http://localhost:3001', apiBaseUrls:['http://localhost:3001'], apiKey:'', preferredBackendUrl:null, preferredBackendLabel:null }, records: [] };
 const DOKUMEN_KAPAL_STORAGE_KEY = 'dokumen-kapal-data';
 async function loadDokumenKapalData(){
   if(!sbClient) return;
@@ -1686,12 +1686,15 @@ async function loadDokumenKapalData(){
       .maybeSingle();
     if(error) throw error;
     if(data && data.value){
-      DOKUMEN_KAPAL = Object.assign({ config:{apiBaseUrl:'http://localhost:3001', apiBaseUrls:['http://localhost:3001'], apiKey:''}, records: [] }, data.value);
+      DOKUMEN_KAPAL = Object.assign({ config:{apiBaseUrl:'http://localhost:3001', apiBaseUrls:['http://localhost:3001'], apiKey:'', preferredBackendUrl:null, preferredBackendLabel:null}, records: [] }, data.value);
       // Migrasi data lama: kalau belum punya apiBaseUrls (array, mendukung beberapa komputer
       // sebagai cadangan), bentuk dari apiBaseUrl tunggal yang sudah ada supaya tidak hilang.
       if(!Array.isArray(DOKUMEN_KAPAL.config.apiBaseUrls) || DOKUMEN_KAPAL.config.apiBaseUrls.length===0){
         DOKUMEN_KAPAL.config.apiBaseUrls = [DOKUMEN_KAPAL.config.apiBaseUrl || 'http://localhost:3001'];
       }
+      // Migrasi data lama: field pilihan PC admin belum ada sama sekali sebelum fitur ini.
+      if(!('preferredBackendUrl' in DOKUMEN_KAPAL.config)) DOKUMEN_KAPAL.config.preferredBackendUrl = null;
+      if(!('preferredBackendLabel' in DOKUMEN_KAPAL.config)) DOKUMEN_KAPAL.config.preferredBackendLabel = null;
     }else{
       await saveDokumenKapalData();
     }
@@ -1803,11 +1806,62 @@ const REALTIME_SAFE_AUTO_VIEWS = new Set([
   'dk-riwayat','dk-folder',
   'tali-rekap'
 ]);
+
+/* ===== Kunci edit otomatis (mencegah data yang SEDANG DIEDIT tertimpa pembaruan akun lain) =====
+   Masalah yang ditambal di sini: SEMUA form edit di aplikasi ini dibuka lewat modal
+   (document.getElementById('modal-root').innerHTML = ...). Field-field di modal itu sendiri
+   TIDAK PERNAH ditimpa oleh pembaruan realtime (render() cuma menyentuh #content, tidak pernah
+   #modal-root) -- jadi ketikan yang sedang berjalan sudah aman. TAPI objek data di memori
+   (mis. DATA.transactions) yang dipakai fungsi "Simpan" untuk MENCARI baris yang sedang diedit
+   (biasanya lewat .find(x=>x.id===id)) tetap ditimpa diam-diam di latar belakang oleh
+   applyRealtimeUpdate() begitu ada akun lain menyimpan -- kalau kebetulan baris itu SAMA
+   PERSIS yang sedang diedit (mis. sampai terhapus oleh akun lain), penyimpanan petugas yang
+   sedang mengedit bisa gagal aneh/diam-diam hilang di tengah proses.
+   Solusinya: SELAMA ada modal terbuka di layar ini (heuristik: #modal-root punya isi -- benar
+   untuk semua 30-an form edit/tambah/hapus di aplikasi ini, tanpa perlu mengubah satu-satu),
+   pembaruan realtime yang masuk DITAHAN dulu (disimpan di REALTIME_PENDING_UPDATES), BUKAN
+   langsung diterapkan. Begitu modal ditutup (closeModal() -- dipanggil baik oleh tombol
+   "Batal" MAUPUN oleh fungsi "Simpan" setelah berhasil), baru diterapkan. Ini PERSIS memenuhi:
+   petugas yang sedang mengedit tetap menyelesaikan prosesnya dulu dengan data yang stabil,
+   baru menerima pembaruan dari petugas lain SETELAH selesai -- bukan di tengah jalan. */
+const REALTIME_PENDING_UPDATES = {}; // storageKey -> {newValue, updatedAt} yang tertahan
+let REALTIME_LOCK_NOTICE_SHOWN = false; // supaya toast pemberitahuan cuma muncul sekali per sesi kunci
+function isEditingLocked(){
+  const modalRoot = document.getElementById('modal-root');
+  return !!(modalRoot && modalRoot.innerHTML.trim().length > 0);
+}
+function flushPendingRealtimeUpdates(){
+  const keys = Object.keys(REALTIME_PENDING_UPDATES);
+  if(!keys.length) return;
+  keys.forEach(k=>{
+    const tertahan = REALTIME_PENDING_UPDATES[k];
+    delete REALTIME_PENDING_UPDATES[k];
+    applyRealtimeUpdate(k, tertahan.newValue, tertahan.updatedAt);
+  });
+}
 function applyRealtimeUpdate(storageKey, newValue, updatedAt){
   const getObj = REALTIME_HOLDERS[storageKey];
   if(!getObj || !newValue) return;
+  if(isEditingLocked()){
+    // Tahan dulu -- jangan timpa data yang mungkin sedang dijadikan acuan oleh form yang
+    // sedang terbuka. Cukup simpan versi TERBARU per storageKey (kalau beberapa pembaruan
+    // masuk beruntun selagi modal masih terbuka, yang lama tidak perlu disimpan semua).
+    REALTIME_PENDING_UPDATES[storageKey] = { newValue, updatedAt };
+    if(!REALTIME_LOCK_NOTICE_SHOWN){
+      REALTIME_LOCK_NOTICE_SHOWN = true;
+      toast('Ada perubahan data terbaru dari akun lain -- akan diterapkan otomatis begitu Anda selesai di sini.');
+    }
+    return;
+  }
   const holder = getObj();
   if(!holder) return;
+  // Jaga urutan: lewati kalau pembaruan ini sudah BASI (lebih lama dari data yang sudah kita
+  // punya sekarang). Bisa terjadi kalau pembaruan sempat tertahan (lihat kunci edit di atas)
+  // lalu setelah modal ditutup ternyata proses SIMPAN kita sendiri (lewat auditedUpsert(), yang
+  // punya mekanisme penggabungan konfliknya sendiri lewat fetch langsung -- lebih segar) sudah
+  // lebih dulu memperbarui data lebih baru dari versi yang tertahan ini. Tanpa penjagaan ini,
+  // versi lama bisa menimpa balik versi yang sudah lebih baru begitu diterapkan.
+  if(holder._serverUpdatedAt && updatedAt && updatedAt <= holder._serverUpdatedAt) return;
   Object.assign(holder, newValue);
   holder._serverUpdatedAt = updatedAt; // supaya penyimpanan berikutnya dari klien ini tidak salah kira konflik
   if(storageKey===TALI_STORAGE_KEY && CURRENT_VIEW==='tali-input' && document.getElementById('tali-ceklis-table-card')){
@@ -4170,7 +4224,14 @@ function deleteTx(id){
   toast('Transaksi dihapus.');
   render();
 }
-function closeModal(){ document.getElementById('modal-root').innerHTML=''; }
+function closeModal(){
+  document.getElementById('modal-root').innerHTML='';
+  REALTIME_LOCK_NOTICE_SHOWN = false; // reset supaya sesi kunci berikutnya bisa memberi tahu lagi kalau perlu
+  // Modal baru saja ditutup -- kalau ada pembaruan dari akun lain yang tertahan selagi modal
+  // ini terbuka (lihat isEditingLocked()/REALTIME_PENDING_UPDATES), terapkan sekarang. Aman
+  // dipanggil di sini walau tidak ada apa-apa yang tertahan (langsung return kalau kosong).
+  flushPendingRealtimeUpdates();
+}
 
 /* ======================= LAPORAN BULANAN (EXPORT) ======================= */
 function renderLaporan(c, actions){
@@ -8756,8 +8817,17 @@ function dkApiBaseList(){
   const cfg = DOKUMEN_KAPAL.config || {};
   const manual = Array.isArray(cfg.apiBaseUrls) ? cfg.apiBaseUrls.filter(Boolean) : (cfg.apiBaseUrl ? [cfg.apiBaseUrl] : []);
   const auto = DK_AUTO_URLS.map(a=>a.url);
-  const gabungan = [...auto, ...manual.filter(u=>!auto.includes(u))];
-  return gabungan.length ? gabungan : ['http://localhost:3001'];
+  let gabungan = [...auto, ...manual.filter(u=>!auto.includes(u))];
+  if(!gabungan.length) gabungan = ['http://localhost:3001'];
+  // Kalau admin sudah MEMILIH SATU PC secara manual (lihat dkPilihBackend()), alamat itu
+  // selalu ditaruh PALING DEPAN di sini -- mengalahkan urutan otomatis berdasarkan "siapa
+  // paling baru lapor". Kalau belum ada yang dipilih (preferredBackendUrl kosong), urutan
+  // tetap sepenuhnya otomatis seperti sebelumnya.
+  const pilihan = cfg.preferredBackendUrl;
+  if(pilihan && gabungan.includes(pilihan)){
+    gabungan = [pilihan, ...gabungan.filter(u=>u!==pilihan)];
+  }
+  return gabungan;
 }
 // Dipertahankan untuk kompatibilitas kode lain yang masih memanggil dkApiBase() -- selalu
 // mengembalikan alamat PERTAMA di daftar (dipakai mis. untuk pesan error/tampilan ringkas).
@@ -8860,10 +8930,16 @@ async function dkFetch(path, options){
     options.headers || {}
   );
   const daftarAlamat = dkApiBaseList();
-  // Coba alamat yang terakhir kali berhasil lebih dulu (kalau ada & masih ada di daftar).
-  const urutan = DK_LAST_WORKING_URL && daftarAlamat.includes(DK_LAST_WORKING_URL)
-    ? [DK_LAST_WORKING_URL, ...daftarAlamat.filter(u=>u!==DK_LAST_WORKING_URL)]
-    : daftarAlamat;
+  // Kalau admin sudah MEMILIH SATU PC secara manual, itu SELALU dicoba lebih dulu -- pilihan
+  // admin mengalahkan "alamat yang terakhir kali berhasil". Kalau belum ada yang dipilih,
+  // pakai kebiasaan lama: coba alamat yang terakhir kali berhasil lebih dulu (kalau ada &
+  // masih ada di daftar), supaya tidak mencoba ulang alamat yang sudah diketahui mati.
+  const pilihanAdmin = (DOKUMEN_KAPAL.config && DOKUMEN_KAPAL.config.preferredBackendUrl) || null;
+  const urutan = (pilihanAdmin && daftarAlamat.includes(pilihanAdmin))
+    ? [pilihanAdmin, ...daftarAlamat.filter(u=>u!==pilihanAdmin)]
+    : (DK_LAST_WORKING_URL && daftarAlamat.includes(DK_LAST_WORKING_URL)
+        ? [DK_LAST_WORKING_URL, ...daftarAlamat.filter(u=>u!==DK_LAST_WORKING_URL)]
+        : daftarAlamat);
   // Batas waktu PENDEK per alamat (bukan default browser yang bisa puluhan detik/menit).
   // Ini penting terutama saat diakses dari luar LAN (mis. HP pakai data seluler): alamat
   // backend berupa IP privat (192.168.x.x) TIDAK PERNAH bisa dijangkau dari luar jaringan
@@ -9088,7 +9164,9 @@ function renderDokumenKapalScan(c, actions){
       </div>
       <p style="font-size:12px;color:var(--ink-soft);margin:6px 0 12px;">
         Daftar ini terisi otomatis — setiap komputer yang menjalankan <span style="font-family:var(--font-mono);">dokumen-kapal-service</span> melapor dirinya sendiri tiap ±1 menit. Kalau komputer paling atas (yang sedang dipakai) mati, sistem otomatis pindah ke komputer lain di daftar ini. Tidak perlu isi IP manual — kolom di bawah hanya cadangan tambahan.
+        ${CURRENT_USER && CURRENT_USER.isAdmin ? ' Sebagai admin, Anda bisa memilih sendiri PC mana yang ingin disambungkan kalau ada lebih dari satu yang aktif — lihat kolom "Pilihan" di tabel.' : ''}
       </p>
+      <div id="dk-pilihan-pc-banner"></div>
       <div id="dk-auto-detected-list" style="font-size:12.5px;color:var(--ink-soft);">Memuat…</div>
     </div>
 
@@ -9123,25 +9201,85 @@ function renderDokumenKapalScan(c, actions){
  */
 async function dkRenderAutoDetected(){
   const box = document.getElementById('dk-auto-detected-list');
+  const banner = document.getElementById('dk-pilihan-pc-banner');
   if(!box) return;
   box.innerHTML = 'Memuat…';
   const daftar = await dkAutoDiscoverUrls();
+  const isAdmin = !!(CURRENT_USER && CURRENT_USER.isAdmin);
+  const pilihanUrl = (DOKUMEN_KAPAL.config && DOKUMEN_KAPAL.config.preferredBackendUrl) || null;
+  const pilihanMasihAda = pilihanUrl && daftar.some(d=>d.url===pilihanUrl);
+  if(banner){
+    if(pilihanUrl){
+      const labelPilihan = escapeHtml((DOKUMEN_KAPAL.config && DOKUMEN_KAPAL.config.preferredBackendLabel) || pilihanUrl);
+      banner.innerHTML = `
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--paper-alt,#f6f3ec);border:1px solid var(--line,#ddd);border-radius:8px;padding:8px 12px;margin-bottom:10px;font-size:12.5px;">
+          <span>📌 PC pilihan admin saat ini: <b>${labelPilihan}</b>${!pilihanMasihAda ? ' <span style="color:var(--rust-dark);">(sedang tidak terdeteksi aktif — dicoba tetap lebih dulu kalau sudah menyala lagi)</span>' : ''}</span>
+          ${isAdmin ? `<button class="btn btn-ghost btn-sm" onclick="dkGunakanOtomatis()">↺ Kembali ke otomatis</button>` : ''}
+        </div>`;
+    } else {
+      banner.innerHTML = '';
+    }
+  }
   if(!daftar.length){
     box.innerHTML = `<p style="margin:0;">Belum ada komputer yang terdeteksi aktif dalam 3 menit terakhir. Pastikan <span style="font-family:var(--font-mono);">dokumen-kapal-service</span> sedang menyala di minimal satu komputer, dan sudah pernah dijalankan sekali dengan <span style="font-family:var(--font-mono);">supabase-schema.sql</span> versi terbaru (untuk tabel <span style="font-family:var(--font-mono);">backend_status</span>).</p>`;
     return;
   }
   box.innerHTML = `
     <table class="ledger">
-      <thead><tr><th>Nama komputer</th><th>Alamat</th><th>Lapor terakhir</th></tr></thead>
+      <thead><tr><th>Nama komputer</th><th>Alamat</th><th>Lapor terakhir</th>${isAdmin?'<th>Pilihan</th>':''}</tr></thead>
       <tbody>
-        ${daftar.map((d,i)=>`<tr>
-          <td class="name-cell">${escapeHtml(d.label)}${i===0?' <span style="color:var(--teal);font-size:11px;">● dicoba pertama</span>':''}</td>
+        ${daftar.map((d)=>{
+          const dipilih = pilihanUrl && d.url===pilihanUrl;
+          // "dicoba pertama" HANYA ditandai kalau admin belum memilih PC manapun (murni
+          // otomatis) -- kalau sudah ada pilihan admin, badge ini pindah ke baris yang dipilih
+          // itu (lihat di bawah), supaya tidak menyesatkan (baris teratas belum tentu yang
+          // benar-benar dicoba lebih dulu lagi kalau ada pilihan admin).
+          const dicobaPertama = pilihanUrl ? dipilih : (daftar[0]===d);
+          return `<tr${dipilih?' style="background:var(--paper-alt,#f6f3ec);"':''}>
+          <td class="name-cell">${escapeHtml(d.label)}${dicobaPertama?' <span style="color:var(--teal);font-size:11px;">● dicoba pertama</span>':''}${dipilih?' <span style="color:var(--gold-dark,#a67c00);font-size:11px;">📌 dipilih admin</span>':''}</td>
           <td style="font-family:var(--font-mono);font-size:12px;">${escapeHtml(d.url)}</td>
           <td style="font-size:11.5px;white-space:nowrap;">${dkFmtWaktu(d.updated_at)}</td>
-        </tr>`).join('')}
+          ${isAdmin?`<td style="white-space:nowrap;">${dipilih
+            ? `<button class="btn btn-ghost btn-sm" onclick="dkGunakanOtomatis()">↺ Otomatis</button>`
+            : `<button class="btn btn-ghost btn-sm" onclick="dkPilihBackend('${d.url.replace(/'/g,"\\'")}','${escapeHtml(d.label).replace(/'/g,"\\'")}')">📌 Pilih PC ini</button>`
+          }</td>`:''}
+        </tr>`;}).join('')}
       </tbody>
     </table>
   `;
+}
+/**
+ * Dipanggil saat admin klik "Pilih PC ini" pada salah satu baris di tabel "Komputer yang
+ * terdeteksi aktif sekarang". Menyimpan pilihan itu ke DOKUMEN_KAPAL.config supaya SEMUA
+ * pengguna (bukan cuma admin yang memilih) ikut tersambung ke PC yang sama -- pilihan ini
+ * tersimpan di Supabase (app_storage), bukan cuma di browser admin itu sendiri.
+ * Kalau PC pilihan ini mati/tidak terjangkau, dkFetch() tetap akan mencobanya lebih dulu
+ * (dan gagal cepat dalam 3 detik) lalu lanjut ke alamat lain di daftar sebagai cadangan --
+ * jadi memilih PC tertentu TIDAK membuat sistem berhenti total kalau PC itu kebetulan mati,
+ * hanya mengubah urutan mana yang dicoba lebih dulu.
+ */
+async function dkPilihBackend(url, label){
+  if(!CURRENT_USER || !CURRENT_USER.isAdmin){ toast('Hanya admin yang bisa memilih PC.'); return; }
+  DOKUMEN_KAPAL.config = Object.assign({}, DOKUMEN_KAPAL.config, {
+    preferredBackendUrl: url,
+    preferredBackendLabel: label
+  });
+  DK_LAST_WORKING_URL = null; // reset supaya urutan baru ini yang dipakai mulai sekarang
+  await saveDokumenKapalData();
+  toast(`PC "${label}" dijadikan pilihan utama untuk semua pengguna.`);
+  dkRenderAutoDetected();
+}
+/** Dipanggil admin untuk membatalkan pilihan manual & kembali ke pemilihan otomatis biasa. */
+async function dkGunakanOtomatis(){
+  if(!CURRENT_USER || !CURRENT_USER.isAdmin){ toast('Hanya admin yang bisa mengubah ini.'); return; }
+  DOKUMEN_KAPAL.config = Object.assign({}, DOKUMEN_KAPAL.config, {
+    preferredBackendUrl: null,
+    preferredBackendLabel: null
+  });
+  DK_LAST_WORKING_URL = null;
+  await saveDokumenKapalData();
+  toast('Kembali ke pemilihan PC otomatis.');
+  dkRenderAutoDetected();
 }
 function dkFmtWaktu(iso){
   if(!iso) return 'belum pernah';
@@ -9404,7 +9542,11 @@ function dkSaveConfig(){
   DOKUMEN_KAPAL.config = {
     apiBaseUrl: urls[0] || '', // dipertahankan untuk kompatibilitas kode/data lama
     apiBaseUrls: urls,
-    apiKey: document.getElementById('dk-cfg-key').value.trim()
+    apiKey: document.getElementById('dk-cfg-key').value.trim(),
+    // Pertahankan pilihan PC admin (kalau ada) -- form "alamat cadangan manual" ini terpisah
+    // dari fitur pilih-PC, jadi menyimpan pengaturan di sini TIDAK BOLEH menghapus pilihan itu.
+    preferredBackendUrl: (DOKUMEN_KAPAL.config && DOKUMEN_KAPAL.config.preferredBackendUrl) || null,
+    preferredBackendLabel: (DOKUMEN_KAPAL.config && DOKUMEN_KAPAL.config.preferredBackendLabel) || null
   };
   DK_LAST_WORKING_URL = null; // reset, coba lagi dari alamat pertama sesuai urutan baru
   saveDokumenKapalData();
