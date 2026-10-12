@@ -6,7 +6,7 @@
    - Supabase, WhatsApp, OCR, Gemini, dll (API/data): TIDAK disentuh sama sekali -> data selalu langsung ke server.
    - Video latar (.mp4/.webm) & request Range: tidak disentuh.
    Naikkan VERSION setiap kali berkas aplikasi diganti supaya cache lama dibersihkan. */
-const VERSION = 'ops-kendari-v4';
+const VERSION = 'ops-kendari-v5';
 const SHELL = VERSION + '-shell';
 const RUNTIME = VERSION + '-rt';
 const PREFIX = 'ops-kendari-';
